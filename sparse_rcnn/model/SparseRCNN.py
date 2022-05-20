@@ -1,6 +1,12 @@
+from collections import namedtuple
+
 import timm
 import torch
 from torch import nn
+from typing import List
+
+from ..utils.box_ops import box_cxcywh_to_xyxy
+from .head import DynamicHead
 
 _available_backbones = {
     "resnet18": timm.create_model("resnet18", features_only=True, out_indices=(1, 2, 3, 4), pretrained=True,
@@ -35,7 +41,24 @@ class FPN(nn.Module):
         p3 = self.p3_out(f3)
         p4 = self.p4_out(f4)
         p5 = self.p5_out(latent_5)
-        return p2, p3, p4, p5
+        return [p2, p3, p4, p5]
+
+
+class ShapeSpec(namedtuple("_ShapeSpec", ["channels", "height", "width", "stride"])):
+    """
+    A simple structure that contains basic shape specification about a tensor.
+    It is often used as the auxiliary inputs/outputs of models,
+    to complement the lack of shape inference ability among pytorch modules.
+
+    Attributes:
+        channels:
+        height:
+        width:
+        stride:
+    """
+
+    def __new__(cls, *, channels=None, height=None, width=None, stride=None):
+        return super().__new__(cls, channels, height, width, stride)
 
 
 class SparseRCNN(torch.nn.Module):
@@ -46,7 +69,9 @@ class SparseRCNN(torch.nn.Module):
         self.in_channels = 256
         # model components
         self.backbone: nn.Module = _available_backbones[backbone]
-        self.fpn = FPN(*self.backbone.feature_info.channels())
+        self.fpn = FPN(*self.backbone.feature_info.channels(), inner_channel=cfg.MODEL.FPN.OUT_CHANNELS)
+        input_shape = self.get_input_shape(self.backbone.feature_info, new_channels=cfg.MODEL.FPN.OUT_CHANNELS)
+        self.dynamic_head = DynamicHead(cfg, input_shape)
 
         # embedding parameters
         self.init_proposal_features = nn.Embedding(self.cfg.MODEL.NUM_PROPOSALS, self.in_channels)
@@ -54,12 +79,27 @@ class SparseRCNN(torch.nn.Module):
         nn.init.constant_(self.init_proposal_boxes.weight[:, :2], 0.5)  # center
         nn.init.constant_(self.init_proposal_boxes.weight[:, 2:], 1.0)  # size
 
-    def forward(self, x):
-        batch_size, *image_wh = x.shape
+    @staticmethod
+    def get_input_shape(feature_info: timm.models.features.FeatureInfo, new_channels: int):
+        src = {}
+        for i, info in enumerate(feature_info.info):
+            src[f"p{i + 1}"] = ShapeSpec(
+                channels=new_channels,
+                stride=info["reduction"],
+            )
+        return src
+
+    def forward(self, x, img_whwh):
+        batch_size, _, *image_wh_pad = x.shape
         features = self.backbone(x)
         features = self.fpn(*features)
 
-        print(f"batch_size: {batch_size}")
-        print(f"image_wh: {image_wh}")
+        proposal_boxes = self.init_proposal_boxes.weight.clone()
+        proposal_boxes_xyxy = box_cxcywh_to_xyxy(proposal_boxes)
+        proposal_boxes_xyxy = proposal_boxes_xyxy[None] * img_whwh[:, None, :]
+
+        outputs_class, outputs_coord = self.dynamic_head(features, proposal_boxes_xyxy, self.init_proposal_features.weight)
+        # print(f"batch_size: {batch_size}")
+        # print(f"image_wh: {image_wh}")
 
         return features

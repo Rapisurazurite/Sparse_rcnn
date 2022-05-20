@@ -27,10 +27,10 @@ transforms = T.Compose([
     T.ResizeShortestEdge(min_size, max_size, sample_style),
 ])
 
-dataloader = build_dataloader(cfg, transforms, batch_size=2, dist=False, workers=0, mode="val")
+dataloader = build_dataloader(cfg, transforms, batch_size=2, dist=False, workers=0, mode="train")
 
 for i, data in enumerate(dataloader):
-    print(data)
+    # print(data)
     img, img_whwh, label = data
     print(f"img_shape: {img.shape}")
     print(f"img_whwh: {img_whwh}")

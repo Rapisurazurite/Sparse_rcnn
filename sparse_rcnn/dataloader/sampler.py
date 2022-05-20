@@ -1,3 +1,5 @@
+import time
+
 from torch.utils.data.sampler import Sampler
 from torch.utils.data.distributed import DistributedSampler
 import random
@@ -122,7 +124,10 @@ class AspectRatioBasedSampler(Sampler):
         self.data_source = data_source
         self.batch_size = batch_size
         self.drop_last = drop_last
+        print("start to group images by aspect ratio")
+        t1 = time.time()
         self.groups = self.group_images()
+        print("finish grouping, using time: {}".format(time.time() - t1))
 
     def __iter__(self):
         random.shuffle(self.groups)
