@@ -3,7 +3,7 @@ from collections import namedtuple
 import timm
 import torch
 from torch import nn
-from typing import List
+from typing import List, Dict
 
 from ..utils.box_ops import box_cxcywh_to_xyxy
 from .head import DynamicHead
@@ -62,11 +62,13 @@ class ShapeSpec(namedtuple("_ShapeSpec", ["channels", "height", "width", "stride
 
 
 class SparseRCNN(torch.nn.Module):
-    def __init__(self, cfg, num_classes, backbone, neck, head):
+    def __init__(self, cfg, num_classes, backbone, head,
+                 raw_outputs=False):
         super(SparseRCNN, self).__init__()
         assert backbone in _available_backbones, f"{backbone} is not available"
         self.cfg = cfg
         self.in_channels = 256
+        self.raw_outputs = raw_outputs
         # model components
         self.backbone: nn.Module = _available_backbones[backbone]
         self.fpn = FPN(*self.backbone.feature_info.channels(), inner_channel=cfg.MODEL.FPN.OUT_CHANNELS)
@@ -89,7 +91,7 @@ class SparseRCNN(torch.nn.Module):
             )
         return src
 
-    def forward(self, x, img_whwh):
+    def forward(self, x: torch.Tensor, img_whwh: torch.Tensor) -> Dict[str, torch.Tensor]:
         batch_size, _, *image_wh_pad = x.shape
         features = self.backbone(x)
         features = self.fpn(*features)
@@ -98,8 +100,23 @@ class SparseRCNN(torch.nn.Module):
         proposal_boxes_xyxy = box_cxcywh_to_xyxy(proposal_boxes)
         proposal_boxes_xyxy = proposal_boxes_xyxy[None] * img_whwh[:, None, :]
 
-        outputs_class, outputs_coord = self.dynamic_head(features, proposal_boxes_xyxy, self.init_proposal_features.weight)
-        # print(f"batch_size: {batch_size}")
-        # print(f"image_wh: {image_wh}")
+        # outputs_class: [(N, NUM_PROPOSALS, NUM_CLASSES)*NUM_HEADS]
+        # outputs_coord: [(N, NUM_PROPOSALS, 4)*NUM_HEADS]
+        outputs_class, outputs_coord = self.dynamic_head(features, proposal_boxes_xyxy,
+                                                         self.init_proposal_features.weight)
 
-        return features
+        if not self.training and not self.raw_outputs:
+            scores = torch.sigmoid(outputs_class[-1])
+            scores, labels = torch.max(scores, -1)
+            output = {
+                "scores": scores,
+                "labels": labels,
+                "boxes": outputs_coord[-1]
+            }
+            return output
+        else:
+            output = {
+                "pred_logits": outputs_class[-1],
+                "pred_boxes": outputs_coord[-1]
+            }
+            return output

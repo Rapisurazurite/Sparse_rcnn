@@ -223,6 +223,7 @@ class RCNNHead(nn.Module):
 
     def forward(self, features, bboxes, pro_features, pooler):
         """
+        :param features: [(N, C, H, W) * num_levels]
         :param bboxes: (N, nr_boxes, 4)
         :param pro_features: (N, nr_boxes, d_model)
         """
@@ -232,20 +233,21 @@ class RCNNHead(nn.Module):
         # roi_feature.
         proposal_boxes = list()
         for b in range(N):
-            proposal_boxes.append(bboxes[b])
-        roi_features = pooler(features, proposal_boxes)
+            proposal_boxes.append(bboxes[b])  # (N, nr_boxes, 4) -> [(nr_boxes, 4) * N]
+        roi_features = pooler(features, proposal_boxes)  # (N*nr_boxes, C, pooler_res, pooler_res)
 
+        # (pooler_res*pooler_res, C, N*nr_boxes)
         roi_features = roi_features.view(N * nr_boxes, self.d_model, -1).permute(2, 0, 1)
 
         # self_att.
-        pro_features = pro_features.view(N, nr_boxes, self.d_model).permute(1, 0, 2)
+        pro_features = pro_features.view(N, nr_boxes, self.d_model).permute(1, 0, 2) #(nr_boxes, N, d_model)
         pro_features2 = self.self_attn(pro_features, pro_features, value=pro_features)[0]
         pro_features = pro_features + self.dropout1(pro_features2)
         pro_features = self.norm1(pro_features)
 
         # inst_interact.
         pro_features = pro_features.view(nr_boxes, N, self.d_model).permute(1, 0, 2).reshape(1, N * nr_boxes,
-                                                                                             self.d_model)
+                                                                                             self.d_model) # (1, N*nr_boxes, d_model)
         pro_features2 = self.inst_interact(pro_features, roi_features)
         pro_features = pro_features + self.dropout2(pro_features2)
         obj_features = self.norm2(pro_features)
