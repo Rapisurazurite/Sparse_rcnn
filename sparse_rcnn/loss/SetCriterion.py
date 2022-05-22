@@ -1,6 +1,10 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
 from fvcore.nn import sigmoid_focal_loss_jit
+
+from ..utils import box_ops
+from ..utils.misc import accuracy
 
 
 class SetCriterion(nn.Module):
@@ -9,6 +13,7 @@ class SetCriterion(nn.Module):
         1) we compute hungarian assignment between ground truth boxes and the outputs of the model
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
+
     def __init__(self, cfg, num_classes, matcher, weight_dict, eos_coef, losses, use_focal):
         """ Create the criterion.
         Parameters:
@@ -27,8 +32,8 @@ class SetCriterion(nn.Module):
         self.losses = losses
         self.use_focal = use_focal
         if self.use_focal:
-            self.focal_loss_alpha = cfg.MODEL.SparseRCNN.ALPHA
-            self.focal_loss_gamma = cfg.MODEL.SparseRCNN.GAMMA
+            self.focal_loss_alpha = cfg.MODEL.LOSS.FOCAL_LOSS_ALPHA
+            self.focal_loss_gamma = cfg.MODEL.LOSS.FOCAL_LOSS_GAMMA
         else:
             empty_weight = torch.ones(self.num_classes + 1)
             empty_weight[-1] = self.eos_coef
@@ -45,6 +50,7 @@ class SetCriterion(nn.Module):
         target_classes_o = torch.cat([t["gt_classes"][J] for t, (_, J) in zip(targets, indices)])
         target_classes = torch.full(src_logits.shape[:2], self.num_classes,
                                     dtype=torch.int64, device=src_logits.device)
+        # obtain the target classes for each proposal box
         target_classes[idx] = target_classes_o
 
         if self.use_focal:
@@ -72,7 +78,6 @@ class SetCriterion(nn.Module):
             losses['class_error'] = 100 - accuracy(src_logits[idx], target_classes_o)[0]
         return losses
 
-
     def loss_boxes(self, outputs, targets, indices, num_boxes):
         """Compute the losses related to the bounding boxes, the L1 regression loss and the GIoU loss
            targets dicts must contain the key "boxes" containing a tensor of dim [nb_target_boxes, 4]
@@ -93,7 +98,6 @@ class SetCriterion(nn.Module):
         loss_bbox = F.l1_loss(src_boxes_, target_boxes_, reduction='none')
         losses['loss_bbox'] = loss_bbox.sum() / num_boxes
         return losses
-
 
     def _get_src_permutation_idx(self, indices):
         # permute predictions following indices
@@ -124,14 +128,11 @@ class SetCriterion(nn.Module):
         """
         outputs_without_aux = {k: v for k, v in outputs.items() if k != 'aux_outputs'}
         # Retrieve the matching between the outputs of the last layer and the targets
-        indices = self.matcher(outputs_without_aux, targets)
+        indices = self.matcher(outputs_without_aux, targets) # [(output_idx*k, target_idx)*N]
 
         # Compute the average number of target boxes accross all nodes, for normalization purposes
         num_boxes = sum(len(t["gt_classes"]) for t in targets)
         num_boxes = torch.as_tensor([num_boxes], dtype=torch.float, device=next(iter(outputs.values())).device)
-        if is_dist_avail_and_initialized():
-            torch.distributed.all_reduce(num_boxes)
-        num_boxes = torch.clamp(num_boxes / get_world_size(), min=1).item()
 
         # Compute all the requested losses
         losses = {}
@@ -154,4 +155,10 @@ class SetCriterion(nn.Module):
                     l_dict = {k + f'_{i}': v for k, v in l_dict.items()}
                     losses.update(l_dict)
 
+        # Compute the weighted losses
+        weighted_loss = 0
+        for k in losses.keys():
+            if k in self.weight_dict:
+                weighted_loss += self.weight_dict[k] * losses[k]
+        losses['weighted_loss'] = weighted_loss
         return losses

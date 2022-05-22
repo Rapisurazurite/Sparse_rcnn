@@ -1,19 +1,8 @@
-import env
-import os
-import sys
-
-from sparse_rcnn.dataloader.collate import Collate
-import sparse_rcnn.dataset.coco_transform as T
-from sparse_rcnn.dataset import CocoDataset
+import dataloader.dataset.coco_transform as T
 from sparse_rcnn.utils.config import cfg_from_yaml_file, cfg
-from enum import unique
 import argparse
-import albumentations as A
 
-from torch.utils.data import DataLoader
 from sparse_rcnn.dataloader import build_dataloader
-
-
 
 parser = argparse.ArgumentParser(description="Test coco dataset")
 coco_config = "sparse_rcnn/configs/coco.yaml"

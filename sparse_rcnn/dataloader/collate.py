@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 
+
 class Collate(object):
     def __init__(self, cfg, size_divisibility=32):
         self.pixel_mean = torch.Tensor(cfg.NORMALIZATION.PIXEL_MEAN).view(3, 1, 1)
@@ -10,13 +11,13 @@ class Collate(object):
         # self.
         self.size_divisibility = size_divisibility
         self.pad_value = 0
-    
+
     def __call__(self, batch):
         img, img_whwh, target = zip(*batch)
         assert len(img) == len(img_whwh)
         assert len(img) == len(target)
-
-        img = [(_img - self.pixel_mean)/self.pixel_std for _img in img]
+        # TODO: move normalization to transform pipeline
+        img = [(_img - self.pixel_mean) / self.pixel_std for _img in img]
         # img = [self.normalizer(_img) for _img in img]
 
         image_sizes = torch.as_tensor([[im.shape[-2], im.shape[-1]] for im in img])

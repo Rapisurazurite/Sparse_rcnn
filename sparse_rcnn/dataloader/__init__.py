@@ -1,8 +1,7 @@
-import torch
 from torch.utils.data import DataLoader
 
 from .sampler import RandomSampler, AspectRatioBasedSampler, DistributedGroupSampler
-from ..dataset.coco import CocoDataset
+from .dataset import CocoDataset
 from .collate import Collate
 
 __all__ = {
@@ -22,7 +21,7 @@ def build_dataloader(dataset_cfg, transforms, batch_size, dist, workers=4,
                 dataset, batch_size, drop_last=True)
             dataloader = DataLoader(dataset,
                                     num_workers=workers,
-                                    pin_memory=True,
+                                    pin_memory=False,
                                     collate_fn=Collate(dataset_cfg),
                                     batch_sampler=sampler)
         else:  # val
@@ -30,7 +29,7 @@ def build_dataloader(dataset_cfg, transforms, batch_size, dist, workers=4,
                                     batch_size=batch_size,
                                     shuffle=False,
                                     num_workers=workers,
-                                    pin_memory=True,
+                                    pin_memory=False,
                                     collate_fn=Collate(dataset_cfg),
                                     drop_last=False)
         return dataloader

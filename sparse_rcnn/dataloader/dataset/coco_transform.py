@@ -2,6 +2,7 @@ import numpy as np
 import random
 import cv2
 
+
 class Compose(object):
     def __init__(self, transforms):
         self.transforms = transforms
@@ -19,6 +20,7 @@ class Compose(object):
         format_string += "\n)"
         return format_string
 
+
 class RandomFlip(object):
     def __init__(self, prob=0.5):
         self.prob = prob
@@ -28,8 +30,9 @@ class RandomFlip(object):
         if random.random() < self.prob:
             for _box in boxes:
                 _box[0], _box[2] = w - _box[2], w - _box[0]
-            image = image[:, ::-1] #- np.zeros_like(image)
+            image = image[:, ::-1]  # - np.zeros_like(image)
         return image, boxes
+
 
 class ResizeTransform(object):
     """
@@ -60,6 +63,7 @@ class ResizeTransform(object):
             _box[3] *= self.new_h / h
         return img, boxes
 
+
 class ResizeShortestEdge(object):
     """
     Scale the shorter edge to the given size, with a limit of `max_size` on the longer edge.
@@ -67,7 +71,7 @@ class ResizeShortestEdge(object):
     """
 
     def __init__(
-        self, short_edge_length, max_size=4000, sample_style="range", interp=None
+            self, short_edge_length, max_size=4000, sample_style="range", interp=None
     ):
         """
         Args:
@@ -110,3 +114,22 @@ class ResizeShortestEdge(object):
         newh = int(newh + 0.5)
 
         return ResizeTransform(h, w, newh, neww, self.interp)(image, boxes)
+
+
+# TODO: use albumentations to replace this
+def build_coco_transforms(cfg, mode="train"):
+    assert mode in ["train", "val"], "Unknown mode '{}'".format(mode)
+    min_size = cfg.INPUT.MIN_SIZE_TRAIN
+    max_size = cfg.INPUT.MAX_SIZE_TRAIN
+    sample_style = cfg.INPUT.MIN_SIZE_TRAIN_SAMPLING
+    if mode == "train":
+        coco_train_transform = Compose([
+            RandomFlip(),
+            ResizeShortestEdge(min_size, max_size, sample_style),
+        ])
+        return coco_train_transform
+    elif mode == "val":
+        coco_val_transform = Compose([
+            ResizeShortestEdge(min_size, max_size, sample_style),
+        ])
+        return coco_val_transform

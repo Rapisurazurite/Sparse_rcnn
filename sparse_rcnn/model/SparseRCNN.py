@@ -5,6 +5,8 @@ import torch
 from torch import nn
 from typing import List, Dict
 
+from ..loss.SetCriterion import SetCriterion
+from ..utils.HungarianMatcher import HungarianMatcher
 from ..utils.box_ops import box_cxcywh_to_xyxy
 from .head import DynamicHead
 
@@ -61,11 +63,12 @@ class ShapeSpec(namedtuple("_ShapeSpec", ["channels", "height", "width", "stride
         return super().__new__(cls, channels, height, width, stride)
 
 
+
 class SparseRCNN(torch.nn.Module):
-    def __init__(self, cfg, num_classes, backbone, head,
+    def __init__(self, cfg, num_classes, backbone,
                  raw_outputs=False):
         super(SparseRCNN, self).__init__()
-        assert backbone in _available_backbones, f"{backbone} is not available"
+        assert backbone in _available_backbones.keys(), f"{backbone} is not available"
         self.cfg = cfg
         self.in_channels = 256
         self.raw_outputs = raw_outputs

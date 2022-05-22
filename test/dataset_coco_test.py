@@ -1,10 +1,7 @@
-import env
-import os
-import sys
 import argparse
 
 from sparse_rcnn.utils.config import cfg_from_yaml_file, cfg
-from sparse_rcnn.dataset import CocoDataset
+from dataloader.dataset import CocoDataset
 
 
 parser = argparse.ArgumentParser(description="Test coco dataset")

@@ -27,8 +27,8 @@ class HungarianMatcher(nn.Module):
         self.cost_giou = cost_giou
         self.use_focal = use_focal
         if self.use_focal:
-            self.focal_loss_alpha = cfg.MODEL.SparseRCNN.ALPHA
-            self.focal_loss_gamma = cfg.MODEL.SparseRCNN.GAMMA
+            self.focal_loss_alpha = cfg.MODEL.LOSS.FOCAL_LOSS_ALPHA
+            self.focal_loss_gamma = cfg.MODEL.LOSS.FOCAL_LOSS_GAMMA
         assert cost_class != 0 or cost_bbox != 0 or cost_giou != 0, "all costs cant be 0"
 
     @torch.no_grad()
