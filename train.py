@@ -200,11 +200,11 @@ def main():
     log_config_to_file(cfg, logger=logger)
     # ------------ Create dataloader ------------
     train_dataloader = build_dataloader(cfg,
-                                        transforms=build_coco_transforms(cfg, mode="val"),
+                                        transforms=build_coco_transforms(cfg, mode="train"),
                                         batch_size=cfg.SOLVER.IMS_PER_BATCH,
                                         dist=False,
                                         workers=4,
-                                        mode="val")
+                                        mode="train")
     model = SparseRCNN(
         cfg,
         num_classes=cfg.MODEL.SparseRCNN.NUM_CLASSES,
