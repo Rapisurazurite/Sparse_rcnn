@@ -1,0 +1,4 @@
+timm
+sharedarray
+pycocotools
+fvcore
