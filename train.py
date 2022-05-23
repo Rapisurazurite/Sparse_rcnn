@@ -148,8 +148,8 @@ def save_checkpoint(state: Dict[str, Any], filename="checkpoint", max_checkpoint
     torch.save(state, filename)
     save_path = os.path.dirname(filename)
     checkpoint_files = glob.glob(os.path.join(save_path, "checkpoint_epoch_*.pth"))
-    epoch_of_checkpoint = [int(os.path.basename(f).split(".")[0].split("_")[-1]) for f in checkpoint_files]
-    epoch_of_checkpoint.sort()
+    checkpoint_files.sort(key=lambda x: int(os.path.basename(x).split(".")[0].split("_")[-1]))
+
     # remove old checkpoints if number of checkpoints exceed max_checkpoints
     if len(checkpoint_files) > max_checkpoints:
         for f in checkpoint_files[:-max_checkpoints]:
