@@ -11,9 +11,18 @@ from ..utils.box_ops import box_cxcywh_to_xyxy
 from .head import DynamicHead
 
 _available_backbones = {
-    "resnet18": timm.create_model("resnet18", features_only=True, out_indices=(1, 2, 3, 4), pretrained=True,
-                                  num_classes=0,
-                                  global_pool="")
+    "resnet18": {"model_name": "resnet18",
+                 "features_only": True,
+                 "out_indices": (1, 2, 3, 4),
+                 "pretrained": True,
+                 "num_classes": 0,
+                 "global_pool": ""},
+    "resnet50": {"model_name": "resnet50",
+                 "features_only": True,
+                 "out_indices": (1, 2, 3, 4),
+                 "pretrained": True,
+                 "num_classes": 0,
+                 "global_pool": ""},
 }
 
 
@@ -63,7 +72,6 @@ class ShapeSpec(namedtuple("_ShapeSpec", ["channels", "height", "width", "stride
         return super().__new__(cls, channels, height, width, stride)
 
 
-
 class SparseRCNN(torch.nn.Module):
     def __init__(self, cfg, num_classes, backbone,
                  raw_outputs=False):
@@ -74,7 +82,7 @@ class SparseRCNN(torch.nn.Module):
         self.raw_outputs = raw_outputs
         self.deep_supervision = cfg.MODEL.SparseRCNN.DEEP_SUPERVISION
         # model components
-        self.backbone: nn.Module = _available_backbones[backbone]
+        self.backbone: nn.Module = timm.create_model(**_available_backbones[backbone])
         self.fpn = FPN(*self.backbone.feature_info.channels(), inner_channel=cfg.MODEL.FPN.OUT_CHANNELS)
         input_shape = self.get_input_shape(self.backbone.feature_info, new_channels=cfg.MODEL.FPN.OUT_CHANNELS)
         self.dynamic_head = DynamicHead(cfg, input_shape)

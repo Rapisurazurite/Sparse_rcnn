@@ -2,12 +2,12 @@ import argparse
 import datetime
 import glob
 import os
+import subprocess
 import time
 from typing import Dict, Any, List
 
 import torch
 import tqdm
-
 from sparse_rcnn.utils.config import cfg_from_yaml_file, cfg, cfg_from_list, log_config_to_file
 from sparse_rcnn.utils import common_utils
 from sparse_rcnn.dataloader import build_dataloader
@@ -22,6 +22,8 @@ def parse_args():
     parser.add_argument("--dataset", type=str, default="sparse_rcnn/configs/coco.yaml")
     parser.add_argument("--model", type=str, default="sparse_rcnn/configs/sparse_rcnn.yaml")
     parser.add_argument("--extra_tag", type=str, default="default")
+    parser.add_argument("--extern_callback", type=str, default=None)
+    parser.add_argument("--max_checkpoints", type=int, default=5)
     parser.add_argument('--set', dest='set_cfgs', default=None, nargs=argparse.REMAINDER,
                         help='set extra config keys if needed')
     args = parser.parse_args()
@@ -34,17 +36,22 @@ def parse_args():
 
 
 def train_model(model, criterion, optimizer, train_loader, scheduler, start_epoch, total_epochs, device, logger,
-                ckpt_save_dir,
-                solver_cfg):
+                ckpt_save_dir, args, solver_cfg, extern_callback=None):
     model.train()
     with tqdm.trange(start_epoch, total_epochs, desc="epochs", dynamic_ncols=False) as ebar:
         for cur_epoch in ebar:
             train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_epoch, device, ebar, logger)
             model_state = checkpoint_state(model=model, optimizer=optimizer, epoch=cur_epoch)
-            save_checkpoint(model_state, os.path.join(ckpt_save_dir, "checkpoint_epoch_%d" % (cur_epoch + 1)))
+            save_checkpoint(model_state, os.path.join(ckpt_save_dir, "checkpoint_epoch_%d" % (cur_epoch + 1)),
+                            max_checkpoints=args.max_checkpoints)
             logger.info("Saving checkpoint to %s\n", ckpt_save_dir)
             eval(model, cur_epoch=cur_epoch, logger=logger)
-
+            if extern_callback is not None:
+                try:
+                    p = subprocess.Popen(extern_callback, shell=True)
+                    p.wait()
+                except Exception as e:
+                    logger.error(e)
         pass
 
 
@@ -114,9 +121,9 @@ def train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_ep
         tbar.set_postfix(disp_dict)
         tbar.update()
 
-        # TODO: delete
-        if cur_iter > 250:
-            break
+        # # TODO: delete
+        # if cur_iter > 250:
+        #     break
     # --------------- after train one epoch ---------------
     logger.info("Epoch %d, loss: %.4f, loss_ce: %.4f, loss_giou: %.4f, loss_bbox: %.4f",
                 cur_epoch + 1, total_loss.all_avg, loss_ce.all_avg, loss_giou.all_avg, loss_bbox.all_avg)
@@ -136,9 +143,17 @@ def checkpoint_state(model=None, optimizer=None, epoch=None, it=None):
     }
 
 
-def save_checkpoint(state: Dict[str, Any], filename="checkpoint"):
+def save_checkpoint(state: Dict[str, Any], filename="checkpoint", max_checkpoints=5):
     filename = f"{filename}.pth"
     torch.save(state, filename)
+    save_path = os.path.dirname(filename)
+    checkpoint_files = glob.glob(os.path.join(save_path, "checkpoint_epoch_*.pth"))
+    epoch_of_checkpoint = [int(os.path.basename(f).split(".")[0].split("_")[-1]) for f in checkpoint_files]
+    epoch_of_checkpoint.sort()
+    # remove old checkpoints if number of checkpoints exceed max_checkpoints
+    if len(checkpoint_files) > max_checkpoints:
+        for f in checkpoint_files[:-max_checkpoints]:
+            os.remove(f)
 
 
 def load_checkpoint(model, optimizer, ckpt_dir, logger):
@@ -188,8 +203,8 @@ def main():
                                         transforms=build_coco_transforms(cfg, mode="val"),
                                         batch_size=cfg.SOLVER.IMS_PER_BATCH,
                                         dist=False,
-                                        workers=0,
-                                        mode="train")
+                                        workers=4,
+                                        mode="val")
     model = SparseRCNN(
         cfg,
         num_classes=cfg.MODEL.SparseRCNN.NUM_CLASSES,
@@ -205,7 +220,7 @@ def main():
 
     start_epoch, cur_it = load_checkpoint(model, optimizer, ckpt_dir, logger)
 
-    freeze_params_contain_keyword(model, keywords=["backbone"], logger=logger)
+    # freeze_params_contain_keyword(model, keywords=["backbone"], logger=logger)
 
     train_model(model,
                 criterion,
@@ -217,7 +232,9 @@ def main():
                 device=device,
                 logger=logger,
                 ckpt_save_dir=ckpt_dir,
-                solver_cfg=cfg.SOLVER)
+                args=args,
+                solver_cfg=cfg.SOLVER,
+                extern_callback=args.extern_callback)
 
 
 if __name__ == "__main__":
