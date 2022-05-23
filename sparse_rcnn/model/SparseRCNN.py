@@ -72,6 +72,7 @@ class SparseRCNN(torch.nn.Module):
         self.cfg = cfg
         self.in_channels = 256
         self.raw_outputs = raw_outputs
+        self.deep_supervision = cfg.MODEL.SparseRCNN.DEEP_SUPERVISION
         # model components
         self.backbone: nn.Module = _available_backbones[backbone]
         self.fpn = FPN(*self.backbone.feature_info.channels(), inner_channel=cfg.MODEL.FPN.OUT_CHANNELS)
@@ -122,4 +123,7 @@ class SparseRCNN(torch.nn.Module):
                 "pred_logits": outputs_class[-1],
                 "pred_boxes": outputs_coord[-1]
             }
+            if self.deep_supervision:
+                output['aux_outputs'] = [{'pred_logits': a, 'pred_boxes': b}
+                                         for a, b in zip(outputs_class[:-1], outputs_coord[:-1])]
             return output

@@ -35,9 +35,9 @@ def parse_args():
 def train_model(model, criterion, optimizer, train_loader, scheduler, start_epoch, total_epochs, device, logger, ckpt_save_dir,
                 solver_cfg):
     model.train()
-    with tqdm.trange(start_epoch, total_epochs, desc="epochs", dynamic_ncols=True) as tbar:
-        for cur_epoch in tbar:
-            train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_epoch, device, logger)
+    with tqdm.trange(start_epoch, total_epochs, desc="epochs", dynamic_ncols=True) as ebar:
+        for cur_epoch in ebar:
+            train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_epoch, device, ebar)
             model_state = checkpoint_state(model=model, optimizer=optimizer, epoch=cur_epoch)
             save_checkpoint(model_state, os.path.join(ckpt_save_dir, "checkpoint_epoch_%d" % cur_epoch + 1))
             logger.info("Saving checkpoint to %s", ckpt_save_dir)
@@ -51,17 +51,18 @@ def eval(model, cur_epoch, logger):
     pass
 
 
-def train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_epoch, device, logger):
+def train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_epoch, device, ebar):
     model.train()
 
     total_it_each_epoch = len(train_loader)
     dataloader_iter = iter(train_loader)
 
-    data_time = common_utils.AverageMeter()
-    batch_time = common_utils.AverageMeter()
-    forward_time = common_utils.AverageMeter()
+    total_loss = common_utils.WindowAverageMeter()
+    loss_ce = common_utils.WindowAverageMeter()
+    loss_giou = common_utils.WindowAverageMeter()
+    loss_bbox = common_utils.WindowAverageMeter()
 
-    pbar = tqdm.trange(total_it_each_epoch, desc="train", dynamic_ncols=True)
+    tbar = tqdm.trange(total_it_each_epoch, desc="train", dynamic_ncols=True)
     for cur_iter in range(total_it_each_epoch):
         end = time.time()
         batch = next(dataloader_iter)
@@ -73,12 +74,13 @@ def train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_ep
                     t[k] = t[k].to(device)
 
         data_time = time.time()
+        cur_data_time = data_time - end
 
         scheduler.step(cur_epoch * total_it_each_epoch + cur_iter)
         optimizer.zero_grad()
 
         output = model(img, img_whwh)
-        loss = criterion(output, label)
+        loss: Dict[str, Any] = criterion(output, label)
         weighted_loss = loss["weighted_loss"]
         forward_timer = time.time()
         cur_forward_time = forward_timer - data_time
@@ -87,15 +89,30 @@ def train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_ep
         optimizer.step()
         cur_batch_time = time.time() - end
 
-        disp_dict = {
-            "loss": weighted_loss.item(),
+        # --------------- display ---------------
+        total_loss.update(weighted_loss.item())
+        loss_ce.update(loss["loss_ce"].item())
+        loss_giou.update(loss["loss_giou"].item())
+        loss_bbox.update(loss["loss_bbox"].item())
+
+
+
+        e_disp = {
             "lr": float(scheduler.get_lr()[0]),
-            "data": data_time,
+            "data": cur_data_time,
             "batch": cur_batch_time,
             "forward": cur_forward_time,
         }
-        pbar.set_postfix(disp_dict)
-        pbar.update()
+        ebar.set_postfix(e_disp)
+        ebar.refresh()
+        disp_dict = {
+            "loss": total_loss.avg,
+            "loss_ce": loss_ce.avg,
+            "loss_giou": loss_giou.avg,
+            "loss_bbox": loss_bbox.avg,
+        }
+        tbar.set_postfix(disp_dict)
+        tbar.update()
 
 
 def checkpoint_state(model=None, optimizer=None, epoch=None, it=None):

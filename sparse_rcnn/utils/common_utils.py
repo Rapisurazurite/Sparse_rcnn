@@ -4,6 +4,8 @@ import pickle
 import random
 import shutil
 import subprocess
+from collections import deque
+
 import SharedArray
 
 import numpy as np
@@ -265,3 +267,16 @@ class AverageMeter(object):
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
+
+
+class WindowAverageMeter(object):
+    def __init__(self, window_size=10):
+        self.window_size = window_size
+        self.reset()
+
+    def reset(self):
+        self.window = deque(maxlen=self.window_size)
+
+    def update(self, val):
+        self.window.append(val)
+        self.avg =  np.mean(self.window)

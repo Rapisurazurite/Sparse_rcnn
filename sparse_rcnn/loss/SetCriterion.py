@@ -157,8 +157,9 @@ class SetCriterion(nn.Module):
 
         # Compute the weighted losses
         weighted_loss = 0
-        for k in losses.keys():
-            if k in self.weight_dict:
-                weighted_loss += self.weight_dict[k] * losses[k]
+        for loss_name in losses.keys():
+            for weight_name in self.weight_dict:
+                if weight_name in loss_name:
+                    weighted_loss += losses[loss_name] * self.weight_dict[weight_name]
         losses['weighted_loss'] = weighted_loss
         return losses
