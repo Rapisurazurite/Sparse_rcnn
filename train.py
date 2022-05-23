@@ -37,7 +37,7 @@ def train_model(model, criterion, optimizer, train_loader, scheduler, start_epoc
                 ckpt_save_dir,
                 solver_cfg):
     model.train()
-    with tqdm.trange(start_epoch, total_epochs, desc="epochs", dynamic_ncols=True) as ebar:
+    with tqdm.trange(start_epoch, total_epochs, desc="epochs", dynamic_ncols=False) as ebar:
         for cur_epoch in ebar:
             train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_epoch, device, ebar, logger)
             model_state = checkpoint_state(model=model, optimizer=optimizer, epoch=cur_epoch)
@@ -64,7 +64,7 @@ def train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_ep
     loss_giou = common_utils.WindowAverageMeter()
     loss_bbox = common_utils.WindowAverageMeter()
 
-    tbar = tqdm.trange(total_it_each_epoch, desc="train", dynamic_ncols=True)
+    tbar = tqdm.trange(total_it_each_epoch, desc="train", dynamic_ncols=False)
     for cur_iter in range(total_it_each_epoch):
         end = time.time()
         batch = next(dataloader_iter)
@@ -99,17 +99,17 @@ def train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_ep
 
         e_disp = {
             "lr": float(scheduler.get_lr()[0]),
-            "data": cur_data_time,
-            "batch": cur_batch_time,
-            "forward": cur_forward_time,
+            "dt": cur_data_time,
+            "bt": cur_batch_time,
+            "ft": cur_forward_time,
         }
         ebar.set_postfix(e_disp)
         ebar.refresh()
         disp_dict = {
-            "loss": total_loss.avg,
-            "loss_ce": loss_ce.avg,
-            "loss_giou": loss_giou.avg,
-            "loss_bbox": loss_bbox.avg,
+            "l": total_loss.avg,
+            "l_ce": loss_ce.avg,
+            "l_giou": loss_giou.avg,
+            "l_bbox": loss_bbox.avg,
         }
         tbar.set_postfix(disp_dict)
         tbar.update()
@@ -189,7 +189,7 @@ def main():
                                         batch_size=cfg.SOLVER.IMS_PER_BATCH,
                                         dist=False,
                                         workers=0,
-                                        mode="val")
+                                        mode="train")
     model = SparseRCNN(
         cfg,
         num_classes=cfg.MODEL.SparseRCNN.NUM_CLASSES,
