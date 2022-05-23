@@ -1,8 +1,9 @@
 import argparse
 import datetime
+import glob
 import os
 import time
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 import torch
 import tqdm
@@ -32,15 +33,16 @@ def parse_args():
     return args, cfg
 
 
-def train_model(model, criterion, optimizer, train_loader, scheduler, start_epoch, total_epochs, device, logger, ckpt_save_dir,
+def train_model(model, criterion, optimizer, train_loader, scheduler, start_epoch, total_epochs, device, logger,
+                ckpt_save_dir,
                 solver_cfg):
     model.train()
     with tqdm.trange(start_epoch, total_epochs, desc="epochs", dynamic_ncols=True) as ebar:
         for cur_epoch in ebar:
-            train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_epoch, device, ebar)
+            train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_epoch, device, ebar, logger)
             model_state = checkpoint_state(model=model, optimizer=optimizer, epoch=cur_epoch)
-            save_checkpoint(model_state, os.path.join(ckpt_save_dir, "checkpoint_epoch_%d" % cur_epoch + 1))
-            logger.info("Saving checkpoint to %s", ckpt_save_dir)
+            save_checkpoint(model_state, os.path.join(ckpt_save_dir, "checkpoint_epoch_%d" % (cur_epoch + 1)))
+            logger.info("Saving checkpoint to %s\n", ckpt_save_dir)
             eval(model, cur_epoch=cur_epoch, logger=logger)
 
         pass
@@ -51,7 +53,7 @@ def eval(model, cur_epoch, logger):
     pass
 
 
-def train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_epoch, device, ebar):
+def train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_epoch, device, ebar, logger):
     model.train()
 
     total_it_each_epoch = len(train_loader)
@@ -95,8 +97,6 @@ def train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_ep
         loss_giou.update(loss["loss_giou"].item())
         loss_bbox.update(loss["loss_bbox"].item())
 
-
-
         e_disp = {
             "lr": float(scheduler.get_lr()[0]),
             "data": cur_data_time,
@@ -113,6 +113,13 @@ def train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_ep
         }
         tbar.set_postfix(disp_dict)
         tbar.update()
+
+        # TODO: delete
+        if cur_iter > 250:
+            break
+    # --------------- after train one epoch ---------------
+    logger.info("Epoch %d, loss: %.4f, loss_ce: %.4f, loss_giou: %.4f, loss_bbox: %.4f",
+                cur_epoch + 1, total_loss.all_avg, loss_ce.all_avg, loss_giou.all_avg, loss_bbox.all_avg)
 
 
 def checkpoint_state(model=None, optimizer=None, epoch=None, it=None):
@@ -132,6 +139,35 @@ def checkpoint_state(model=None, optimizer=None, epoch=None, it=None):
 def save_checkpoint(state: Dict[str, Any], filename="checkpoint"):
     filename = f"{filename}.pth"
     torch.save(state, filename)
+
+
+def load_checkpoint(model, optimizer, ckpt_dir, logger):
+    ckpt_files = glob.glob(os.path.join(ckpt_dir, "*.pth"))
+    if len(ckpt_files) != 0:
+        ckpt_epochs = [int(os.path.basename(f).split("_")[-1].split(".")[0]) for f in ckpt_files]
+        max_epoch = max(ckpt_epochs)
+        last_ckpt_file = os.path.join(ckpt_dir, f"checkpoint_epoch_{max_epoch}.pth")
+        logger.info("Loading checkpoint from %s", last_ckpt_file)
+        state_dict = torch.load(last_ckpt_file, map_location=torch.device("cpu"))
+        cur_epoch, cur_it = state_dict["epoch"] + 1, state_dict["it"]  # +1 because we want to start from next epoch
+        model.load_state_dict(state_dict["model_state"])
+        optimizer.load_state_dict(state_dict["optimizer_state"])
+        return cur_epoch, cur_it
+    else:
+        logger.info("No checkpoint found in %s", ckpt_dir)
+        return 0, 0
+
+
+def freeze_params_contain_keyword(model, keywords: List[str], logger):
+    if keywords is None or len(keywords) == 0:
+        return
+
+    logger.info("Freezing params containing keywords: %s", keywords)
+    for name, param in model.named_parameters():
+        for keyword in keywords:
+            if keyword in name:
+                param.requires_grad = False
+                logger.info("Freeze parameter %s", name)
 
 
 def main():
@@ -160,14 +196,16 @@ def main():
         backbone="resnet18"
     )
 
-    # start_epoch, model = load_model()
-    start_epoch = 0
+    logger.info("Model: \n{}".format(model))
 
     model.to(device)
-
     criterion = SparseRcnnLoss(cfg)
     optimizer = build_optimizer(cfg, model)
     lr_scheduler = build_lr_scheduler(cfg, optimizer)
+
+    start_epoch, cur_it = load_checkpoint(model, optimizer, ckpt_dir, logger)
+
+    freeze_params_contain_keyword(model, keywords=["backbone"], logger=logger)
 
     train_model(model,
                 criterion,

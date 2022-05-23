@@ -276,7 +276,15 @@ class WindowAverageMeter(object):
 
     def reset(self):
         self.window = deque(maxlen=self.window_size)
+        self.sum = 0
+        self.count = 0
 
     def update(self, val):
         self.window.append(val)
-        self.avg =  np.mean(self.window)
+        self.avg = np.mean(self.window)
+        self.sum += val
+        self.count += 1
+
+    @property
+    def all_avg(self):
+        return self.sum / self.count
