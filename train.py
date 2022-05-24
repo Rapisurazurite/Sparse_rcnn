@@ -88,9 +88,9 @@ def eval(evaluator, model, test_loader, cur_epoch, device, logger):
             evaluator.process(label, output)
             tbar.update()
 
-            # # TODO: delete
-            # if cur_iter > 250:
-            #     break
+            # TODO: delete
+            if cur_iter > 250:
+                break
 
         ret = evaluator.evaluate()
         logger.info("Evaluation result:")
@@ -257,7 +257,7 @@ def main():
     model = SparseRCNN(
         cfg,
         num_classes=cfg.MODEL.SparseRCNN.NUM_CLASSES,
-        backbone="resnet18"
+        backbone=cfg.MODEL.BACKBONE
     )
 
     logger.info("Model: \n{}".format(model))
