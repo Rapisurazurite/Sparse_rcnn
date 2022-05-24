@@ -97,12 +97,6 @@ def eval(evaluator, model, test_loader, cur_epoch, device, logger):
         return ret
 
 
-
-
-
-
-
-
 def train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_epoch, device, ebar, logger):
     model.train()
 
