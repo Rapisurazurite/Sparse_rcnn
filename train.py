@@ -55,9 +55,43 @@ def train_model(model, criterion, optimizer, train_loader, scheduler, start_epoc
         pass
 
 
-def eval(model, cur_epoch, logger):
-    logger.info("Evaluating checkpoint at epoch %d", cur_epoch + 1)
-    pass
+def eval(evaluator, model, test_loader, cur_epoch, device, logger):
+    logger.info("Evaluating checkpoint at epoch %d", cur_epoch)
+    model.eval()
+
+    total_it_each_epoch = len(test_loader)
+    dataloader_iter = iter(test_loader)
+
+    tbar = tqdm.trange(total_it_each_epoch, desc="evaluating", dynamic_ncols=False)
+    evaluator.reset()
+    with torch.no_grad():
+        for cur_iter in range(total_it_each_epoch):
+            batch = next(dataloader_iter)
+            img, img_whwh, label = batch
+            img, img_whwh = img.to(device), img_whwh.to(device)
+            for t in label:
+                for k in t.keys():
+                    if k in ['gt_boxes', 'gt_classes', 'image_size_xyxy', 'image_size_xyxy_tgt']:
+                        t[k] = t[k].to(device)
+
+            output = model(img, img_whwh)
+            batch_size = img.shape[0]
+
+            for each_sample in range(batch_size):
+                label_sample = label[each_sample]
+                img_factor = torch.Tensor([label_sample["width"], label_sample["height"], label_sample["width"], label_sample["height"]]).to(device) / label_sample["image_size_xyxy"]
+                output['boxes'][each_sample] *= img_factor
+
+            evaluator.process(label, output)
+            tbar.update()
+
+        ret = evaluator.evaluate()
+        logger.info("Evaluation result:")
+        logger.info('AP : {AP:.3f}, AP50 : {AP50:.3f}, AP75 : {AP75:.3f}'.format(
+            AP=ret["bbox"]["AP"],
+            AP50=ret["bbox"]["AP50"],
+            AP75=ret["bbox"]["AP75"]))
+        return ret
 
 
 def train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_epoch, device, ebar, logger):
