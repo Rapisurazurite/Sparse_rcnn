@@ -15,6 +15,7 @@ from sparse_rcnn.dataloader.dataset import build_coco_transforms
 from sparse_rcnn.model import SparseRCNN
 from sparse_rcnn.loss import SparseRcnnLoss
 from sparse_rcnn.solver.build_optimizer import build_optimizer, build_lr_scheduler
+from sparse_rcnn.evaluation.coco_evaluation import COCOEvaluator
 
 
 def parse_args():
@@ -86,6 +87,10 @@ def eval(evaluator, model, test_loader, cur_epoch, device, logger):
 
             evaluator.process(label, output)
             tbar.update()
+
+            # # TODO: delete
+            # if cur_iter > 250:
+            #     break
 
         ret = evaluator.evaluate()
         logger.info("Evaluation result:")
@@ -247,6 +252,8 @@ def main():
                                    dist=False,
                                    workers=4,
                                    mode="val")
+    # train_dataloader = test_loader
+
     model = SparseRCNN(
         cfg,
         num_classes=cfg.MODEL.SparseRCNN.NUM_CLASSES,
@@ -259,6 +266,7 @@ def main():
     criterion = SparseRcnnLoss(cfg)
     optimizer = build_optimizer(cfg, model)
     lr_scheduler = build_lr_scheduler(cfg, optimizer)
+    evaluator = COCOEvaluator(cfg.BASE_ROOT, 'coco_2017_val', logger)
 
     start_epoch, cur_it = load_checkpoint(model, optimizer, ckpt_dir, logger)
 
