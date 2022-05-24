@@ -35,8 +35,8 @@ def parse_args():
     return args, cfg
 
 
-def train_model(model, criterion, optimizer, train_loader, scheduler, start_epoch, total_epochs, device, logger,
-                ckpt_save_dir, args, solver_cfg, extern_callback=None):
+def train_model(model, criterion, optimizer, evaluator, train_loader, test_loader, scheduler, start_epoch, total_epochs,
+                device, logger, ckpt_save_dir, args, solver_cfg, extern_callback=None):
     model.train()
     with tqdm.trange(start_epoch, total_epochs, desc="epochs", dynamic_ncols=False) as ebar:
         for cur_epoch in ebar:
@@ -45,7 +45,7 @@ def train_model(model, criterion, optimizer, train_loader, scheduler, start_epoc
             save_checkpoint(model_state, os.path.join(ckpt_save_dir, "checkpoint_epoch_%d" % (cur_epoch + 1)),
                             max_checkpoints=args.max_checkpoints)
             logger.info("Saving checkpoint to %s\n", ckpt_save_dir)
-            eval(model, cur_epoch=cur_epoch, logger=logger)
+            eval(evaluator, model, test_loader, cur_epoch=cur_epoch, device=device, logger=logger)
             if extern_callback is not None:
                 try:
                     p = subprocess.Popen(extern_callback, shell=True)
@@ -56,7 +56,7 @@ def train_model(model, criterion, optimizer, train_loader, scheduler, start_epoc
 
 
 def eval(evaluator, model, test_loader, cur_epoch, device, logger):
-    logger.info("Evaluating checkpoint at epoch %d", cur_epoch)
+    logger.info("Evaluating checkpoint at epoch %d", cur_epoch + 1)
     model.eval()
 
     total_it_each_epoch = len(test_loader)
@@ -79,7 +79,9 @@ def eval(evaluator, model, test_loader, cur_epoch, device, logger):
 
             for each_sample in range(batch_size):
                 label_sample = label[each_sample]
-                img_factor = torch.Tensor([label_sample["width"], label_sample["height"], label_sample["width"], label_sample["height"]]).to(device) / label_sample["image_size_xyxy"]
+                img_factor = torch.Tensor(
+                    [label_sample["width"], label_sample["height"], label_sample["width"], label_sample["height"]]).to(
+                    device) / label_sample["image_size_xyxy"]
                 output['boxes'][each_sample] *= img_factor
 
             evaluator.process(label, output)
@@ -239,6 +241,12 @@ def main():
                                         dist=False,
                                         workers=4,
                                         mode="train")
+    test_loader = build_dataloader(cfg,
+                                   transforms=build_coco_transforms(cfg, mode="val"),
+                                   batch_size=cfg.SOLVER.IMS_PER_BATCH,
+                                   dist=False,
+                                   workers=4,
+                                   mode="val")
     model = SparseRCNN(
         cfg,
         num_classes=cfg.MODEL.SparseRCNN.NUM_CLASSES,
@@ -259,7 +267,9 @@ def main():
     train_model(model,
                 criterion,
                 optimizer,
+                evaluator=evaluator,
                 train_loader=train_dataloader,
+                test_loader=test_loader,
                 scheduler=lr_scheduler,
                 start_epoch=start_epoch,
                 total_epochs=cfg.SOLVER.NUM_EPOCHS,
