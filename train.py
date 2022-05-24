@@ -162,9 +162,9 @@ def train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_ep
         tbar.set_postfix(disp_dict)
         tbar.update()
 
-        # # TODO: delete
-        # if cur_iter > 250:
-        #     break
+        # TODO: delete
+        if cur_iter > 250:
+            break
     # --------------- after train one epoch ---------------
     logger.info("Epoch %d, loss: %.4f, loss_ce: %.4f, loss_giou: %.4f, loss_bbox: %.4f",
                 cur_epoch + 1, total_loss.all_avg, loss_ce.all_avg, loss_giou.all_avg, loss_bbox.all_avg)
