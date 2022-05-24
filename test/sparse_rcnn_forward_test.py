@@ -1,9 +1,11 @@
 import argparse
 
 from sparse_rcnn.utils.config import cfg_from_yaml_file, cfg
-from dataloader.dataset import build_coco_transforms
+from sparse_rcnn.dataloader.dataset import build_coco_transforms
 from sparse_rcnn.dataloader import build_dataloader
 from sparse_rcnn.model import SparseRCNN
+from sparse_rcnn.evaluation.coco_evaluation import COCOEvaluator
+
 
 parser = argparse.ArgumentParser(description="Test coco dataset")
 coco_config = "../sparse_rcnn/configs/coco.yaml"

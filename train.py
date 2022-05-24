@@ -157,16 +157,16 @@ def save_checkpoint(state: Dict[str, Any], filename="checkpoint", max_checkpoint
 
 
 def load_checkpoint(model, optimizer, ckpt_dir, logger):
-    ckpt_files = glob.glob(os.path.join(ckpt_dir, "*.pth"))
-    if len(ckpt_files) != 0:
-        ckpt_epochs = [int(os.path.basename(f).split("_")[-1].split(".")[0]) for f in ckpt_files]
-        max_epoch = max(ckpt_epochs)
-        last_ckpt_file = os.path.join(ckpt_dir, f"checkpoint_epoch_{max_epoch}.pth")
+    checkpoint_files = glob.glob(os.path.join(ckpt_dir, "*.pth"))
+    if len(checkpoint_files) != 0:
+        checkpoint_files.sort(key=lambda x: int(os.path.basename(x).split(".")[0].split("_")[-1]))
+        last_ckpt_file = checkpoint_files[-1]
         logger.info("Loading checkpoint from %s", last_ckpt_file)
         state_dict = torch.load(last_ckpt_file, map_location=torch.device("cpu"))
         cur_epoch, cur_it = state_dict["epoch"] + 1, state_dict["it"]  # +1 because we want to start from next epoch
         model.load_state_dict(state_dict["model_state"])
-        optimizer.load_state_dict(state_dict["optimizer_state"])
+        if optimizer is not None:
+            optimizer.load_state_dict(state_dict["optimizer_state"])
         return cur_epoch, cur_it
     else:
         logger.info("No checkpoint found in %s", ckpt_dir)
