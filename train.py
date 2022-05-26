@@ -1,22 +1,22 @@
 import argparse
 import datetime
-import glob
 import os
 import subprocess
 import time
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 import torch
 import tqdm
-from sparse_rcnn.utils.config import cfg_from_yaml_file, cfg, cfg_from_list, log_config_to_file
-from sparse_rcnn.utils import common_utils, commu_utils
+
 from sparse_rcnn.dataloader import build_dataloader
 from sparse_rcnn.dataloader.dataset import build_coco_transforms
-from sparse_rcnn.model import SparseRCNN
-from sparse_rcnn.loss import SparseRcnnLoss
-from sparse_rcnn.solver.build_optimizer import build_optimizer, build_lr_scheduler
 from sparse_rcnn.evaluation.coco_evaluation import COCOEvaluator
-from sparse_rcnn.utils.train_utils import checkpoint_state, save_checkpoint, load_checkpoint, freeze_params_contain_keyword
+from sparse_rcnn.loss import SparseRcnnLoss
+from sparse_rcnn.model import SparseRCNN
+from sparse_rcnn.solver.build_optimizer import build_optimizer, build_lr_scheduler
+from sparse_rcnn.utils import common_utils, commu_utils
+from sparse_rcnn.utils.config import cfg_from_yaml_file, cfg, cfg_from_list, log_config_to_file
+from sparse_rcnn.utils.train_utils import checkpoint_state, save_checkpoint, load_checkpoint
 
 
 def parse_args():
@@ -53,7 +53,8 @@ def train_model(model, criterion, optimizer, evaluator, train_loader, test_loade
     model.train()
     with tqdm.trange(start_epoch, total_epochs, desc="epochs", ncols=80) as ebar:
         for cur_epoch in ebar:
-            train_one_epoch(model, criterion, optimizer, train_loader, scheduler, cur_epoch, device, logger, args, cfg, ebar)
+            train_one_epoch(model, criterion, optimizer, train_loader, scheduler, cur_epoch, device, logger, args, cfg,
+                            ebar)
             if cfg.LOCAL_RANK == 0:
                 model_state = checkpoint_state(model=model, optimizer=optimizer, epoch=cur_epoch)
                 save_checkpoint(model_state, os.path.join(ckpt_save_dir, "checkpoint_epoch_%d" % cur_epoch),
@@ -61,7 +62,8 @@ def train_model(model, criterion, optimizer, evaluator, train_loader, test_loade
                 logger.info("Saving checkpoint to %s\n", ckpt_save_dir)
 
                 # currenly only support eval on single card
-                eval(evaluator, model, test_loader, cur_epoch=cur_epoch, device=device, logger=logger, args=args, cfg=cfg)
+                eval(evaluator, model, test_loader, cur_epoch=cur_epoch, device=device, logger=logger, args=args,
+                     cfg=cfg)
             if extern_callback is not None and cfg.LOCAL_RANK == 0:
                 try:
                     p = subprocess.Popen(extern_callback, shell=True)
@@ -126,7 +128,7 @@ def train_one_epoch(model, criterion, optimizer, train_loader, scheduler, cur_ep
         batch_timer = common_utils.AverageMeter()
         forward_timer = common_utils.AverageMeter()
 
-    tbar = tqdm.trange(total_it_each_epoch, desc="train", ncols=80)
+    tbar = tqdm.trange(total_it_each_epoch, desc="train", ncols=120)
     for cur_iter in range(total_it_each_epoch):
         end = time.time()
         batch = next(dataloader_iter)
@@ -183,20 +185,16 @@ def train_one_epoch(model, criterion, optimizer, train_loader, scheduler, cur_ep
 
             # ----------------- log -----------------
             if cur_iter % args.log_iter == 0:
-                logger.info("Epoch %d, Iter %d, lr %.6f, loss %.4f, loss_ce %.4f, loss_giou %.4f, loss_bbox %.4f",
-                            cur_epoch, cur_iter, e_disp["lr"], t_disp["l"], t_disp["l_ce"], t_disp["l_giou"],
-                            t_disp["l_bbox"])
+                logger.info(
+                    f"Epoch: [{cur_epoch}][{cur_iter}/{total_it_each_epoch}], \n lr:{e_disp['lr']}, loss: {t_disp['l']}, loss_ce: {t_disp['l_ce']}, loss_giou: {t_disp['l_giou']}, loss_bbox: {t_disp['l_bbox']}")
 
         # # TODO: delete
         # if cur_iter > 250:
         #     break
     # --------------- after train one epoch ---------------
-    logger.info("Epoch %d, Iter %d, lr %.6f, loss %.4f, loss_ce %.4f, loss_giou %.4f, loss_bbox %.4f",
-                cur_epoch, cur_iter, e_disp["lr"], t_disp["l"], t_disp["l_ce"], t_disp["l_giou"],
-                t_disp["l_bbox"])
-
-
-
+    logger.info("Epoch: {} finished!".format(cur_epoch))
+    logger.info(
+        f"Epoch: {cur_epoch}, \n lr:{e_disp['lr']}, loss: {t_disp['l']}, loss_ce: {t_disp['l_ce']}, loss_giou: {t_disp['l_giou']}, loss_bbox: {t_disp['l_bbox']}")
 
 
 def main():
@@ -267,7 +265,6 @@ def main():
             device_ids=[cfg.LOCAL_RANK % torch.cuda.device_count()],
             find_unused_parameters=True
         )
-
 
     train_model(model,
                 criterion,
