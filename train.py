@@ -16,6 +16,7 @@ from sparse_rcnn.model import SparseRCNN
 from sparse_rcnn.loss import SparseRcnnLoss
 from sparse_rcnn.solver.build_optimizer import build_optimizer, build_lr_scheduler
 from sparse_rcnn.evaluation.coco_evaluation import COCOEvaluator
+from sparse_rcnn.utils.train_utils import checkpoint_state, save_checkpoint, load_checkpoint, freeze_params_contain_keyword
 
 
 def parse_args():
@@ -46,7 +47,7 @@ def train_model(model, criterion, optimizer, evaluator, train_loader, test_loade
             save_checkpoint(model_state, os.path.join(ckpt_save_dir, "checkpoint_epoch_%d" % (cur_epoch + 1)),
                             max_checkpoints=args.max_checkpoints)
             logger.info("Saving checkpoint to %s\n", ckpt_save_dir)
-            eval(evaluator, model, test_loader, cur_epoch=cur_epoch, device=device, logger=logger)
+            eval(evaluator, model, test_loader, cur_epoch=cur_epoch+1, device=device, logger=logger)
             if extern_callback is not None:
                 try:
                     p = subprocess.Popen(extern_callback, shell=True)
@@ -57,7 +58,7 @@ def train_model(model, criterion, optimizer, evaluator, train_loader, test_loade
 
 
 def eval(evaluator, model, test_loader, cur_epoch, device, logger):
-    logger.info("Evaluating checkpoint at epoch %d", cur_epoch + 1)
+    logger.info("Evaluating checkpoint at epoch %d", cur_epoch)
     model.eval()
 
     total_it_each_epoch = len(test_loader)
@@ -170,60 +171,7 @@ def train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_ep
                 cur_epoch + 1, total_loss.all_avg, loss_ce.all_avg, loss_giou.all_avg, loss_bbox.all_avg)
 
 
-def checkpoint_state(model=None, optimizer=None, epoch=None, it=None):
-    optim_state = optimizer.state_dict() if optimizer is not None else None
-    if model is not None:
-        model_state = model.state_dict()
-    else:
-        model_state = None
-    return {
-        "epoch": epoch,
-        "it": it,
-        "model_state": model_state,
-        "optimizer_state": optim_state,
-    }
 
-
-def save_checkpoint(state: Dict[str, Any], filename="checkpoint", max_checkpoints=5):
-    filename = f"{filename}.pth"
-    torch.save(state, filename)
-    save_path = os.path.dirname(filename)
-    checkpoint_files = glob.glob(os.path.join(save_path, "checkpoint_epoch_*.pth"))
-    checkpoint_files.sort(key=lambda x: int(os.path.basename(x).split(".")[0].split("_")[-1]))
-
-    # remove old checkpoints if number of checkpoints exceed max_checkpoints
-    if len(checkpoint_files) > max_checkpoints:
-        for f in checkpoint_files[:-max_checkpoints]:
-            os.remove(f)
-
-
-def load_checkpoint(model, optimizer, ckpt_dir, logger):
-    checkpoint_files = glob.glob(os.path.join(ckpt_dir, "*.pth"))
-    if len(checkpoint_files) != 0:
-        checkpoint_files.sort(key=lambda x: int(os.path.basename(x).split(".")[0].split("_")[-1]))
-        last_ckpt_file = checkpoint_files[-1]
-        logger.info("Loading checkpoint from %s", last_ckpt_file)
-        state_dict = torch.load(last_ckpt_file, map_location=torch.device("cpu"))
-        cur_epoch, cur_it = state_dict["epoch"] + 1, state_dict["it"]  # +1 because we want to start from next epoch
-        model.load_state_dict(state_dict["model_state"])
-        if optimizer is not None:
-            optimizer.load_state_dict(state_dict["optimizer_state"])
-        return cur_epoch, cur_it
-    else:
-        logger.info("No checkpoint found in %s", ckpt_dir)
-        return 0, 0
-
-
-def freeze_params_contain_keyword(model, keywords: List[str], logger):
-    if keywords is None or len(keywords) == 0:
-        return
-
-    logger.info("Freezing params containing keywords: %s", keywords)
-    for name, param in model.named_parameters():
-        for keyword in keywords:
-            if keyword in name:
-                param.requires_grad = False
-                logger.info("Freeze parameter %s", name)
 
 
 def main():
