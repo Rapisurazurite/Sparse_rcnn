@@ -9,7 +9,7 @@ __all__ = {
 }
 
 
-def build_dataloader(dataset_cfg, transforms, batch_size, dist, workers=4,
+def build_dataloader(dataset_cfg, transforms, batch_size, dist, workers=4, pin_memory=True,
                      mode="train"):
 
     if dataset_cfg.DATASET not in __all__.keys():
@@ -24,7 +24,7 @@ def build_dataloader(dataset_cfg, transforms, batch_size, dist, workers=4,
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
-        pin_memory=False,
+        pin_memory=pin_memory,
         num_workers=workers,
         shuffle=False,
         collate_fn=Collate(dataset_cfg),
