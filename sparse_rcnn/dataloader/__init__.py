@@ -32,7 +32,7 @@ def build_dataloader(dataset_cfg, transforms, batch_size, dist, workers=4, pin_m
             shuffle=True,  # Not used
             collate_fn=Collate(dataset_cfg),
             drop_last=False,
-            sampler=sampler,
+            batch_sampler=sampler,
         )
     elif mode == "val":
         if dist:
