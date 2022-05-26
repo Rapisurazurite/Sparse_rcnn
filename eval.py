@@ -93,12 +93,6 @@ def main():
     logger.info('**********************Start logging**********************')
     log_config_to_file(cfg, logger=logger)
     # ------------ Create dataloader ------------
-    train_dataloader = build_dataloader(cfg,
-                                        transforms=build_coco_transforms(cfg, mode="train"),
-                                        batch_size=cfg.SOLVER.IMS_PER_BATCH,
-                                        dist=False,
-                                        workers=4,
-                                        mode="train")
     test_loader = build_dataloader(cfg,
                                    transforms=build_coco_transforms(cfg, mode="val"),
                                    batch_size=cfg.SOLVER.IMS_PER_BATCH,
@@ -129,7 +123,6 @@ def main():
         for ckpt_file in checkpoint_files:
             start_epoch, cur_it = load_checkpoint(model, optimizer, ckpt_file, logger)
             eval(evaluator, model, test_loader, cur_epoch=start_epoch, device=device, logger=logger)
-        raise NotImplementedError
 
 
 if __name__ == "__main__":
