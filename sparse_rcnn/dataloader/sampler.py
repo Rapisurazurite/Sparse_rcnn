@@ -8,6 +8,7 @@ import torch
 import math
 import numpy as np
 
+
 class DistributedGroupSampler(Sampler):
     """Sampler that restricts data loading to a subset of the dataset.
     It is especially useful in conjunction with
@@ -54,7 +55,7 @@ class DistributedGroupSampler(Sampler):
         # assert hasattr(self.dataset, 'flag')
         self.flag = np.zeros(len(self.dataset), dtype=np.uint8)
         for i in range(len(self.dataset)):
-            if self.dataset.image_aspect_ratio(i)>1:
+            if self.dataset.image_aspect_ratio(i) > 1:
                 self.flag[i] = 1
             # img_info = self.data_infos[i]
             # if img_info['width'] / img_info['height'] > 1:
@@ -155,8 +156,9 @@ class AspectRatioBasedSampler(Sampler):
         else:
             self.l0 = (len(self.data0) + self.batch_size - 1) // self.batch_size
             self.l1 = (len(self.data1) + self.batch_size - 1) // self.batch_size
-        return [self.data0[i:i+self.batch_size] for i in range(0, self.l0*self.batch_size, self.batch_size)] \
-                + [self.data1[i:i+self.batch_size] for i in range(0, self.l1*self.batch_size, self.batch_size)]
+        return [self.data0[i:i + self.batch_size] for i in range(0, self.l0 * self.batch_size, self.batch_size)] \
+               + [self.data1[i:i + self.batch_size] for i in range(0, self.l1 * self.batch_size, self.batch_size)]
+
 
 # class AspectRatioBasedSampler(Sampler):
 
@@ -184,7 +186,7 @@ class AspectRatioBasedSampler(Sampler):
 
 #         # divide into groups, one group = one batch
 #         return [[order[x % len(order)] for x in range(i, i + self.batch_size)] for i in range(0, len(order), self.batch_size)]
-        
+
 class RandomSampler(Sampler):
     def __init__(self, data_source, batch_size, drop_last):
         self.data_source = data_source
@@ -211,5 +213,4 @@ class RandomSampler(Sampler):
             self.l = len(self.data_source) // self.batch_size
         else:
             self.l = (len(self.data_source) + self.batch_size - 1) // self.batch_size
-        return [order[i:i+self.batch_size] for i in range(0, self.l*self.batch_size, self.batch_size)]
-
+        return [order[i:i + self.batch_size] for i in range(0, self.l * self.batch_size, self.batch_size)]
