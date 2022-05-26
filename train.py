@@ -229,13 +229,13 @@ def main():
                                         transforms=build_coco_transforms(cfg, mode="train"),
                                         batch_size=cfg.SOLVER.IMS_PER_BATCH,
                                         dist=dist_train,
-                                        workers=4,
+                                        workers=2,
                                         mode="train")
     test_loader = build_dataloader(cfg,
                                    transforms=build_coco_transforms(cfg, mode="val"),
                                    batch_size=cfg.SOLVER.IMS_PER_BATCH,
                                    dist=dist_train,
-                                   workers=4,
+                                   workers=2,
                                    mode="val")
 
     # --------------- Create model ---------------
