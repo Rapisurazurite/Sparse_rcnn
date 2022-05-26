@@ -79,7 +79,7 @@ def eval(evaluator, model, test_loader, cur_epoch, device, logger, args, cfg):
     total_it_each_epoch = len(test_loader)
     dataloader_iter = iter(test_loader)
 
-    tbar = tqdm.trange(total_it_each_epoch, desc="evaluating", ncols=80)
+    tbar = tqdm.trange(total_it_each_epoch, desc="evaluating", ncols=120)
     evaluator.reset()
     with torch.no_grad():
         for cur_iter in range(total_it_each_epoch):
