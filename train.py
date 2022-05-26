@@ -26,6 +26,7 @@ def parse_args():
     parser.add_argument("--extra_tag", type=str, default="default")
     parser.add_argument("--extern_callback", type=str, default=None)
     parser.add_argument("--max_checkpoints", type=int, default=5)
+    parser.add_argument("--log_iter", type=int, default=200)
     parser.add_argument('--set', dest='set_cfgs', default=None, nargs=argparse.REMAINDER,
                         help='set extra config keys if needed')
     args = parser.parse_args()
@@ -38,16 +39,16 @@ def parse_args():
 
 
 def train_model(model, criterion, optimizer, evaluator, train_loader, test_loader, scheduler, start_epoch, total_epochs,
-                device, logger, ckpt_save_dir, args, solver_cfg, extern_callback=None):
+                device, logger, ckpt_save_dir, args, cfg, extern_callback=None):
     model.train()
-    with tqdm.trange(start_epoch, total_epochs, desc="epochs", dynamic_ncols=False) as ebar:
+    with tqdm.trange(start_epoch, total_epochs, desc="epochs", ncols=80) as ebar:
         for cur_epoch in ebar:
-            train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_epoch, device, ebar, logger)
+            train_one_epoch(model, criterion, optimizer, train_loader, scheduler, cur_epoch, device, logger, args, cfg, ebar)
             model_state = checkpoint_state(model=model, optimizer=optimizer, epoch=cur_epoch)
-            save_checkpoint(model_state, os.path.join(ckpt_save_dir, "checkpoint_epoch_%d" % (cur_epoch + 1)),
+            save_checkpoint(model_state, os.path.join(ckpt_save_dir, "checkpoint_epoch_%d" % cur_epoch),
                             max_checkpoints=args.max_checkpoints)
             logger.info("Saving checkpoint to %s\n", ckpt_save_dir)
-            eval(evaluator, model, test_loader, cur_epoch=cur_epoch+1, device=device, logger=logger)
+            eval(evaluator, model, test_loader, cur_epoch=cur_epoch, device=device, logger=logger)
             if extern_callback is not None:
                 try:
                     p = subprocess.Popen(extern_callback, shell=True)
@@ -64,7 +65,7 @@ def eval(evaluator, model, test_loader, cur_epoch, device, logger):
     total_it_each_epoch = len(test_loader)
     dataloader_iter = iter(test_loader)
 
-    tbar = tqdm.trange(total_it_each_epoch, desc="evaluating", dynamic_ncols=False)
+    tbar = tqdm.trange(total_it_each_epoch, desc="evaluating", ncols=80)
     evaluator.reset()
     with torch.no_grad():
         for cur_iter in range(total_it_each_epoch):
@@ -102,7 +103,7 @@ def eval(evaluator, model, test_loader, cur_epoch, device, logger):
         return ret
 
 
-def train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_epoch, device, ebar, logger):
+def train_one_epoch(model, criterion, optimizer, train_loader, scheduler, cur_epoch, device, logger, args, cfg, ebar):
     model.train()
 
     total_it_each_epoch = len(train_loader)
@@ -113,7 +114,7 @@ def train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_ep
     loss_giou = common_utils.WindowAverageMeter()
     loss_bbox = common_utils.WindowAverageMeter()
 
-    tbar = tqdm.trange(total_it_each_epoch, desc="train", dynamic_ncols=False)
+    tbar = tqdm.trange(total_it_each_epoch, desc="train", ncols=80)
     for cur_iter in range(total_it_each_epoch):
         end = time.time()
         batch = next(dataloader_iter)
@@ -163,12 +164,18 @@ def train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_ep
         tbar.set_postfix(disp_dict)
         tbar.update()
 
+        # ----------------- log -----------------
+        if cur_iter % args.log_iter == 0:
+            logger.info("Epoch %d, Iter %d, lr %.6f, loss %.4f, loss_ce %.4f, loss_giou %.4f, loss_bbox %.4f",
+                        cur_epoch, cur_iter, scheduler.get_lr()[0], total_loss.avg, loss_ce.avg, loss_giou.avg,
+                        loss_bbox.avg)
+
         # # TODO: delete
         # if cur_iter > 250:
         #     break
     # --------------- after train one epoch ---------------
     logger.info("Epoch %d, loss: %.4f, loss_ce: %.4f, loss_giou: %.4f, loss_bbox: %.4f",
-                cur_epoch + 1, total_loss.all_avg, loss_ce.all_avg, loss_giou.all_avg, loss_bbox.all_avg)
+                cur_epoch, total_loss.all_avg, loss_ce.all_avg, loss_giou.all_avg, loss_bbox.all_avg)
 
 
 
@@ -233,7 +240,7 @@ def main():
                 logger=logger,
                 ckpt_save_dir=ckpt_dir,
                 args=args,
-                solver_cfg=cfg.SOLVER,
+                cfg=cfg,
                 extern_callback=args.extern_callback)
 
 
