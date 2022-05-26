@@ -9,7 +9,7 @@ from typing import Dict, Any, List
 import torch
 import tqdm
 from sparse_rcnn.utils.config import cfg_from_yaml_file, cfg, cfg_from_list, log_config_to_file
-from sparse_rcnn.utils import common_utils
+from sparse_rcnn.utils import common_utils, commu_utils
 from sparse_rcnn.dataloader import build_dataloader
 from sparse_rcnn.dataloader.dataset import build_coco_transforms
 from sparse_rcnn.model import SparseRCNN
@@ -21,12 +21,22 @@ from sparse_rcnn.utils.train_utils import checkpoint_state, save_checkpoint, loa
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train sparse rcnn")
+
+    # Base args
     parser.add_argument("--dataset", type=str, default="sparse_rcnn/configs/coco.yaml")
     parser.add_argument("--model", type=str, default="sparse_rcnn/configs/sparse_rcnn.yaml")
-    parser.add_argument("--extra_tag", type=str, default="default")
-    parser.add_argument("--extern_callback", type=str, default=None)
-    parser.add_argument("--max_checkpoints", type=int, default=5)
-    parser.add_argument("--log_iter", type=int, default=200)
+    parser.add_argument("--extra_tag", type=str, default="default", help="extra tag for model saving")
+    parser.add_argument("--extern_callback", type=str, default=None, help="when a epoch is done, run this command")
+    parser.add_argument("--max_checkpoints", type=int, default=5, help="maximum number of checkpoints to keep")
+    parser.add_argument("--log_iter", type=int, default=200, help="log the model info every N iterations")
+
+    # Multi-GPU setting
+    parser.add_argument('--launcher', choices=['none', 'pytorch', 'slurm'], default='none')
+    parser.add_argument('--local_rank', type=int, default=0, help='local rank for distributed training')
+    parser.add_argument('--tcp_port', type=int, default=18888, help='tcp port for distrbuted training')
+    parser.add_argument('--sync_bn', action='store_true', default=False, help='whether to use sync bn')
+
+    # Modified the configs by args
     parser.add_argument('--set', dest='set_cfgs', default=None, nargs=argparse.REMAINDER,
                         help='set extra config keys if needed')
     args = parser.parse_args()
@@ -44,21 +54,23 @@ def train_model(model, criterion, optimizer, evaluator, train_loader, test_loade
     with tqdm.trange(start_epoch, total_epochs, desc="epochs", ncols=80) as ebar:
         for cur_epoch in ebar:
             train_one_epoch(model, criterion, optimizer, train_loader, scheduler, cur_epoch, device, logger, args, cfg, ebar)
-            model_state = checkpoint_state(model=model, optimizer=optimizer, epoch=cur_epoch)
-            save_checkpoint(model_state, os.path.join(ckpt_save_dir, "checkpoint_epoch_%d" % cur_epoch),
-                            max_checkpoints=args.max_checkpoints)
-            logger.info("Saving checkpoint to %s\n", ckpt_save_dir)
-            eval(evaluator, model, test_loader, cur_epoch=cur_epoch, device=device, logger=logger)
-            if extern_callback is not None:
+            if cfg.LOCAL_RANK == 0:
+                model_state = checkpoint_state(model=model, optimizer=optimizer, epoch=cur_epoch)
+                save_checkpoint(model_state, os.path.join(ckpt_save_dir, "checkpoint_epoch_%d" % cur_epoch),
+                                max_checkpoints=args.max_checkpoints)
+                logger.info("Saving checkpoint to %s\n", ckpt_save_dir)
+
+                # currenly only support eval on single card
+                eval(evaluator, model, test_loader, cur_epoch=cur_epoch, device=device, logger=logger, args=args, cfg=cfg)
+            if extern_callback is not None and cfg.LOCAL_RANK == 0:
                 try:
                     p = subprocess.Popen(extern_callback, shell=True)
                     p.wait()
                 except Exception as e:
                     logger.error(e)
-        pass
 
 
-def eval(evaluator, model, test_loader, cur_epoch, device, logger):
+def eval(evaluator, model, test_loader, cur_epoch, device, logger, args, cfg):
     logger.info("Evaluating checkpoint at epoch %d", cur_epoch)
     model.eval()
 
@@ -109,10 +121,10 @@ def train_one_epoch(model, criterion, optimizer, train_loader, scheduler, cur_ep
     total_it_each_epoch = len(train_loader)
     dataloader_iter = iter(train_loader)
 
-    total_loss = common_utils.WindowAverageMeter()
-    loss_ce = common_utils.WindowAverageMeter()
-    loss_giou = common_utils.WindowAverageMeter()
-    loss_bbox = common_utils.WindowAverageMeter()
+    if cfg.LOCAL_RANK == 0:
+        data_timer = common_utils.AverageMeter()
+        batch_timer = common_utils.AverageMeter()
+        forward_timer = common_utils.AverageMeter()
 
     tbar = tqdm.trange(total_it_each_epoch, desc="train", ncols=80)
     for cur_iter in range(total_it_each_epoch):
@@ -134,48 +146,54 @@ def train_one_epoch(model, criterion, optimizer, train_loader, scheduler, cur_ep
         output = model(img, img_whwh)
         loss: Dict[str, Any] = criterion(output, label)
         weighted_loss = loss["weighted_loss"]
-        forward_timer = time.time()
-        cur_forward_time = forward_timer - data_time
+        forward_time = time.time()
+        cur_forward_time = forward_time - data_time
 
         weighted_loss.backward()
         optimizer.step()
         cur_batch_time = time.time() - end
 
-        # --------------- display ---------------
-        total_loss.update(weighted_loss.item())
-        loss_ce.update(loss["loss_ce"].item())
-        loss_giou.update(loss["loss_giou"].item())
-        loss_bbox.update(loss["loss_bbox"].item())
+        # average in different ranks
+        avg_data_time = commu_utils.average_reduce_value(cur_data_time)
+        avg_forward_time = commu_utils.average_reduce_value(cur_forward_time)
+        avg_batch_time = commu_utils.average_reduce_value(cur_batch_time)
 
-        e_disp = {
-            "lr": float(scheduler.get_lr()[0]),
-            "dt": cur_data_time,
-            "bt": cur_batch_time,
-            "ft": cur_forward_time,
-        }
-        ebar.set_postfix(e_disp)
-        ebar.refresh()
-        disp_dict = {
-            "l": total_loss.avg,
-            "l_ce": loss_ce.avg,
-            "l_giou": loss_giou.avg,
-            "l_bbox": loss_bbox.avg,
-        }
-        tbar.set_postfix(disp_dict)
-        tbar.update()
+        if cfg.LOCAL_RANK == 0:
+            # --------------- display ---------------
+            data_timer.update(avg_data_time)
+            batch_timer.update(avg_batch_time)
+            forward_timer.update(avg_forward_time)
 
-        # ----------------- log -----------------
-        if cur_iter % args.log_iter == 0:
-            logger.info("Epoch %d, Iter %d, lr %.6f, loss %.4f, loss_ce %.4f, loss_giou %.4f, loss_bbox %.4f",
-                        cur_epoch, cur_iter, scheduler.get_lr()[0], total_loss.avg, loss_ce.avg, loss_giou.avg,
-                        loss_bbox.avg)
+            e_disp = {
+                "lr": float(scheduler.get_lr()[0]),
+                "d_time": f"{data_timer.val:.2f}/{data_timer.avg:.2f}",
+                "f_time": f"{forward_timer.val:.2f}/{forward_timer.avg:.2f}",
+                "b_time": f"{batch_timer.val:.2f}/{batch_timer.avg:.2f}",
+            }
+            ebar.set_postfix(e_disp)
+            ebar.refresh()
+            t_disp = {
+                "l": f"{weighted_loss.item():.2f}",
+                "l_ce": f"{loss['loss_ce'].item():.2f}",
+                "l_giou": f"{loss['loss_giou'].item():.2f}",
+                "l_bbox": f"{loss['loss_bbox'].item():.2f}",
+            }
+            tbar.set_postfix(t_disp)
+            tbar.update()
+
+            # ----------------- log -----------------
+            if cur_iter % args.log_iter == 0:
+                logger.info("Epoch %d, Iter %d, lr %.6f, loss %.4f, loss_ce %.4f, loss_giou %.4f, loss_bbox %.4f",
+                            cur_epoch, cur_iter, e_disp["lr"], t_disp["l"], t_disp["l_ce"], t_disp["l_giou"],
+                            t_disp["l_bbox"])
 
         # # TODO: delete
         # if cur_iter > 250:
         #     break
     # --------------- after train one epoch ---------------
-    logger.info("Epoch %d, loss: %.4f, loss_ce: %.4f, loss_giou: %.4f, loss_bbox: %.4f",
-                cur_epoch, total_loss.all_avg, loss_ce.all_avg, loss_giou.all_avg, loss_bbox.all_avg)
+    logger.info("Epoch %d, Iter %d, lr %.6f, loss %.4f, loss_ce %.4f, loss_giou %.4f, loss_bbox %.4f",
+                cur_epoch, cur_iter, e_disp["lr"], t_disp["l"], t_disp["l_ce"], t_disp["l_giou"],
+                t_disp["l_bbox"])
 
 
 
@@ -183,6 +201,18 @@ def train_one_epoch(model, criterion, optimizer, train_loader, scheduler, cur_ep
 
 def main():
     args, cfg = parse_args()
+
+    # --------------- Multi-GPU setting ---------------
+    if args.launcher == 'none':
+        dist_train = False
+        total_gpus = 1
+    else:
+        total_gpus, cfg.LOCAL_RANK = getattr(common_utils, 'init_dist_%s' % args.launcher)(
+            args.tcp_port, args.local_rank, backend='nccl'
+        )
+        dist_train = True
+
+    # --------------- save dir ---------------
     output_dir = os.path.join("./output", args.extra_tag, "results")
     ckpt_dir = os.path.join("./output", args.extra_tag, "ckpt")
     log_file = os.path.join(output_dir, "log_train_%s.txt" % datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
@@ -190,30 +220,34 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(ckpt_dir, exist_ok=True)
 
-    logger = common_utils.create_logger(log_file=log_file)
+    # --------------- logger ---------------
+    logger = common_utils.create_logger(log_file=log_file, rank=cfg.LOCAL_RANK)
     device = torch.device(cfg.DEVICE)
     logger.info('**********************Start logging**********************')
     log_config_to_file(cfg, logger=logger)
+
     # ------------ Create dataloader ------------
     train_dataloader = build_dataloader(cfg,
                                         transforms=build_coco_transforms(cfg, mode="train"),
                                         batch_size=cfg.SOLVER.IMS_PER_BATCH,
-                                        dist=False,
+                                        dist=dist_train,
                                         workers=4,
                                         mode="train")
     test_loader = build_dataloader(cfg,
                                    transforms=build_coco_transforms(cfg, mode="val"),
                                    batch_size=cfg.SOLVER.IMS_PER_BATCH,
-                                   dist=False,
+                                   dist=dist_train,
                                    workers=4,
                                    mode="val")
-    # train_dataloader = test_loader
 
+    # --------------- Create model ---------------
     model = SparseRCNN(
         cfg,
         num_classes=cfg.MODEL.SparseRCNN.NUM_CLASSES,
         backbone=cfg.MODEL.BACKBONE
     )
+    if args.sync_bn:
+        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
     logger.info("Model: \n{}".format(model))
 
@@ -226,6 +260,14 @@ def main():
     start_epoch, cur_it = load_checkpoint(model, optimizer, ckpt_dir, logger)
 
     # freeze_params_contain_keyword(model, keywords=["backbone"], logger=logger)
+
+    if dist_train:
+        model = torch.nn.parallel.DistributedDataParallel(
+            model,
+            device_ids=[cfg.LOCAL_RANK % torch.cuda.device_count()],
+            find_unused_parameters=True
+        )
+
 
     train_model(model,
                 criterion,
