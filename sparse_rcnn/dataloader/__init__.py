@@ -26,7 +26,7 @@ def build_dataloader(dataset_cfg, transforms, batch_size, dist, workers=4, pin_m
         batch_size=batch_size,
         pin_memory=pin_memory,
         num_workers=workers,
-        shuffle=False,
+        shuffle=(mode == "train"),
         collate_fn=Collate(dataset_cfg),
         drop_last=False,
         sampler=sampler

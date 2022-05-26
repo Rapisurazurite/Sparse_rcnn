@@ -51,7 +51,7 @@ def parse_args():
 def train_model(model, criterion, optimizer, evaluator, train_loader, test_loader, scheduler, start_epoch, total_epochs,
                 device, logger, ckpt_save_dir, args, cfg, extern_callback=None):
     model.train()
-    with tqdm.trange(start_epoch, total_epochs, desc="epochs", ncols=80) as ebar:
+    with tqdm.trange(start_epoch, total_epochs, desc="epochs", ncols=120) as ebar:
         for cur_epoch in ebar:
             train_one_epoch(model, criterion, optimizer, train_loader, scheduler, cur_epoch, device, logger, args, cfg,
                             ebar)
@@ -230,7 +230,7 @@ def main():
                                         batch_size=cfg.SOLVER.IMS_PER_BATCH,
                                         dist=dist_train,
                                         workers=2,
-                                        pin_memory=False,
+                                        pin_memory=True,
                                         mode="train")
     test_loader = build_dataloader(cfg,
                                    transforms=build_coco_transforms(cfg, mode="val"),
