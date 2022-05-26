@@ -114,10 +114,12 @@ def main():
 
     # if specified ckpt file, load it
     if args.ckpt:
+        logger.info("You specified a ckpt file, loading it")
         start_epoch, cur_it = load_checkpoint(model, optimizer, args.ckpt, logger)
         eval(evaluator, model, test_loader, cur_epoch=start_epoch, device=device, logger=logger)
     # eval the ckpts in ckpt_dir
     else:
+        logger.info("You did not specify a ckpt file, loading the models checkpoints in ckpt_dir")
         checkpoint_files = glob.glob(os.path.join(ckpt_dir, "checkpoint_epoch_*.pth"))
         checkpoint_files.sort(key=lambda x: int(os.path.basename(x).split(".")[0].split("_")[-1]), reverse=True)
         for ckpt_file in checkpoint_files:
