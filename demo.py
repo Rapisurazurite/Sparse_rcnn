@@ -1,22 +1,16 @@
 import argparse
-import datetime
 import glob
 import os
-import subprocess
-import time
-from typing import Dict, Any, List
-import torch.nn.functional as F
+
+import cv2
 import numpy as np
 import torch
-import tqdm
-from sparse_rcnn.utils.config import cfg_from_yaml_file, cfg, cfg_from_list, log_config_to_file
-from sparse_rcnn.utils import common_utils
-from sparse_rcnn.dataloader import build_dataloader, CocoDataset
+import torch.nn.functional as F
+
+from sparse_rcnn.dataloader import CocoDataset
 from sparse_rcnn.dataloader.dataset import build_coco_transforms
 from sparse_rcnn.model import SparseRCNN
-from sparse_rcnn.loss import SparseRcnnLoss
-from sparse_rcnn.solver import build_optimizer, build_lr_scheduler
-import cv2
+from sparse_rcnn.utils.config import cfg_from_yaml_file, cfg, cfg_from_list
 
 
 def parse_args():
@@ -80,6 +74,7 @@ def prepare_data(img):
             pad_img[..., : img.shape[-2], : img.shape[-1]].copy_(img)
 
     return batched_imgs.contiguous()
+
 
 def main():
     args, cfg = parse_args()

@@ -8,7 +8,6 @@ class SparseRcnnLoss(nn.Module):
     def __init__(self, cfg):
         super(SparseRcnnLoss, self).__init__()
         self.cfg = cfg
-        # TODO: move these parameter to loss config
         self.num_classes = cfg.MODEL.SparseRCNN.NUM_CLASSES
         self.use_focal = cfg.MODEL.SparseRCNN.USE_FOCAL
         self.num_classes = cfg.MODEL.SparseRCNN.NUM_CLASSES

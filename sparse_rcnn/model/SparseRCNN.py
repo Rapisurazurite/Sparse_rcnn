@@ -23,6 +23,12 @@ _available_backbones = {
                  "pretrained": True,
                  "num_classes": 0,
                  "global_pool": ""},
+    "efficientnet_b3": {"model_name": "efficientnet_b3",
+                        "features_only": True,
+                        "out_indices": (1, 2, 3, 4),
+                        "pretrained": True,
+                        "num_classes": 0,
+                        "global_pool": ""},
 }
 
 

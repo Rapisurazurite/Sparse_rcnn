@@ -65,9 +65,6 @@ def eval(evaluator, model, test_loader, cur_epoch, device, logger):
             evaluator.process(label, output)
             tbar.update()
 
-            # # TODO: delete
-            # if cur_iter > 250:
-            #     break
 
         ret = evaluator.evaluate()
         logger.info("Evaluation result:")

@@ -13,16 +13,14 @@ Copy-paste from torch.nn.Transformer with modifications:
 """
 import copy
 import math
-from typing import Optional, List
 
 import torch
-from torch import nn, Tensor
 import torch.nn.functional as F
-from torch.nn.init import xavier_uniform_
+from torch import nn, Tensor
 from torch.nn.init import constant_, kaiming_uniform_
+from torch.nn.init import xavier_uniform_
 
 from .poolers import ROIPooler
-import torchvision
 
 _DEFAULT_SCALE_CLAMP = math.log(100000.0 / 16)
 
@@ -46,7 +44,6 @@ class DynamicHead(nn.Module):
         num_heads = cfg.MODEL.SparseRCNN.NUM_HEADS
         rcnn_head = RCNNHead(cfg, d_model, num_classes, dim_feedforward, nhead, dropout, activation)
         self.head_series = _get_clones(rcnn_head, num_heads)
-        self.return_intermediate = cfg.MODEL.SparseRCNN.DEEP_SUPERVISION
 
         # Init parameters.
         self.use_focal = cfg.MODEL.SparseRCNN.USE_FOCAL
@@ -107,16 +104,11 @@ class DynamicHead(nn.Module):
             class_logits, pred_bboxes, proposal_features = rcnn_head(features, bboxes, proposal_features,
                                                                      self.box_pooler)
 
-            if self.return_intermediate:
-                inter_class_logits.append(class_logits)
-                inter_pred_bboxes.append(pred_bboxes)
+            inter_class_logits.append(class_logits)
+            inter_pred_bboxes.append(pred_bboxes)
             bboxes = pred_bboxes.detach()
 
-        if self.return_intermediate:
-            # return torch.stack(inter_class_logits), torch.stack(inter_pred_bboxes)
-            return inter_class_logits, inter_pred_bboxes
-
-        return class_logits[None], pred_bboxes[None]
+        return inter_class_logits, inter_pred_bboxes
 
 
 class MultiheadAttention(nn.Module):
@@ -169,7 +161,6 @@ class MultiheadAttention(nn.Module):
 
 
 class RCNNHead(nn.Module):
-
     def __init__(self, cfg, d_model, num_classes, dim_feedforward=2048, nhead=8, dropout=0.1, activation="relu",
                  scale_clamp: float = _DEFAULT_SCALE_CLAMP, bbox_weights=(2.0, 2.0, 1.0, 1.0)):
         super().__init__()
@@ -240,14 +231,14 @@ class RCNNHead(nn.Module):
         roi_features = roi_features.view(N * nr_boxes, self.d_model, -1).permute(2, 0, 1)
 
         # self_att.
-        pro_features = pro_features.view(N, nr_boxes, self.d_model).permute(1, 0, 2) #(nr_boxes, N, d_model)
+        pro_features = pro_features.view(N, nr_boxes, self.d_model).permute(1, 0, 2)  # (nr_boxes, N, d_model)
         pro_features2 = self.self_attn(pro_features, pro_features, value=pro_features)[0]
         pro_features = pro_features + self.dropout1(pro_features2)
         pro_features = self.norm1(pro_features)
 
         # inst_interact.
         pro_features = pro_features.view(nr_boxes, N, self.d_model).permute(1, 0, 2).reshape(1, N * nr_boxes,
-                                                                                             self.d_model) # (1, N*nr_boxes, d_model)
+                                                                                             self.d_model)  # (1, N*nr_boxes, d_model)
         pro_features2 = self.inst_interact(pro_features, roi_features)
         pro_features = pro_features + self.dropout2(pro_features2)
         obj_features = self.norm2(pro_features)

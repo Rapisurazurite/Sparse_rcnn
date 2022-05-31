@@ -157,10 +157,6 @@ def train_one_epoch(model, optimizer, criterion, train_loader, scheduler, cur_ep
         }
         tbar.set_postfix(disp_dict)
         tbar.update()
-
-        # # TODO: delete
-        # if cur_iter > 250:
-        #     break
     # --------------- after train one epoch ---------------
     logger.info("Epoch %d, loss: %.4f, loss_ce: %.4f, loss_giou: %.4f, loss_bbox: %.4f",
                 cur_epoch + 1, total_loss.all_avg, loss_ce.all_avg, loss_giou.all_avg, loss_bbox.all_avg)
@@ -235,12 +231,12 @@ def main():
     logger.info('**********************Start logging**********************')
     log_config_to_file(cfg, logger=logger)
     # ------------ Create dataloader ------------
-    # train_dataloader = build_dataloader(cfg,
-    #                                     transforms=build_coco_transforms(cfg, mode="train"),
-    #                                     batch_size=cfg.SOLVER.IMS_PER_BATCH,
-    #                                     dist=False,
-    #                                     workers=4,
-    #                                     mode="train")
+    train_dataloader = build_dataloader(cfg,
+                                        transforms=build_coco_transforms(cfg, mode="train"),
+                                        batch_size=cfg.SOLVER.IMS_PER_BATCH,
+                                        dist=False,
+                                        workers=4,
+                                        mode="train")
 
     test_dataloader = build_dataloader(cfg,
                                    transforms=build_coco_transforms(cfg, mode="val"),
@@ -249,8 +245,6 @@ def main():
                                    workers=0,
                                    mode="val")
 
-    # TODO: delete
-    train_dataloader = test_dataloader
 
     model = SparseRCNN(
         cfg,

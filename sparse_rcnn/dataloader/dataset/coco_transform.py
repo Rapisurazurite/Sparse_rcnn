@@ -45,10 +45,6 @@ class ResizeTransform(object):
             new_h, new_w (int): new image size
             interp: PIL interpolation methods, defaults to bilinear.
         """
-        # TODO decide on PIL vs opencv
-        # if interp is None:
-        #     self.interp = Image.BILINEAR
-        # self._set_attributes(locals())
         self.new_h = new_h
         self.new_w = new_w
 

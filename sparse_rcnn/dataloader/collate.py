@@ -16,7 +16,6 @@ class Collate(object):
         img, img_whwh, target = zip(*batch)
         assert len(img) == len(img_whwh)
         assert len(img) == len(target)
-        # TODO: move normalization to transform pipeline
         img = [(_img - self.pixel_mean) / self.pixel_std for _img in img]
         # img = [self.normalizer(_img) for _img in img]
 

@@ -104,10 +104,6 @@ def eval(evaluator, model, test_loader, cur_epoch, device, logger, args, cfg):
             evaluator.process(label, output)
             tbar.update()
 
-            # # TODO: delete
-            # if cur_iter > 250:
-            #     break
-
         ret = evaluator.evaluate()
         logger.info("Evaluation result:")
         logger.info('AP : {AP:.3f}, AP50 : {AP50:.3f}, AP75 : {AP75:.3f}'.format(

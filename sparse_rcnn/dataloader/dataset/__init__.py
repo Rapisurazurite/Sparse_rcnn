@@ -3,7 +3,6 @@ from .coco_transform import SmallestMaxSize_v2
 import albumentations as A
 
 
-# TODO: use albumentations to replace this
 # def build_coco_transforms(cfg, mode="train"):
 #     assert mode in ["train", "val"], "Unknown mode '{}'".format(mode)
 #     min_size = cfg.INPUT.MIN_SIZE_TRAIN

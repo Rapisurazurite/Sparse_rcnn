@@ -15,8 +15,15 @@ _available_backbones = {
                  "pretrained": True,
                  "num_classes": 0,
                  "global_pool": ""},
+    "efficientnet_b3": {"model_name": "efficientnet_b3",
+                        "features_only": True,
+                        "out_indices": (1, 2, 3, 4),
+                        "pretrained": True,
+                        "num_classes": 0,
+                        "global_pool": ""},
+
 }
 
-resnet50 = timm.create_model(**_available_backbones["resnet50"])
+resnet50 = timm.create_model(**_available_backbones["efficientnet_b3"])
 print(resnet50)
 print(resnet50.feature_info.info)
