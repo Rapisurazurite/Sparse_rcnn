@@ -1,6 +1,5 @@
-import numpy as np
-import random
 import cv2
+import numpy as np
 
 
 class Compose(object):
@@ -116,20 +115,46 @@ class ResizeShortestEdge(object):
         return ResizeTransform(h, w, newh, neww, self.interp)(image, bboxes)
 
 
-# TODO: use albumentations to replace this
-def build_coco_transforms(cfg, mode="train"):
-    assert mode in ["train", "val"], "Unknown mode '{}'".format(mode)
-    min_size = cfg.INPUT.MIN_SIZE_TRAIN
-    max_size = cfg.INPUT.MAX_SIZE_TRAIN
-    sample_style = cfg.INPUT.MIN_SIZE_TRAIN_SAMPLING
-    if mode == "train":
-        coco_train_transform = Compose([
-            RandomFlip(),
-            ResizeShortestEdge(min_size, max_size, sample_style),
-        ])
-        return coco_train_transform
-    elif mode == "val":
-        coco_val_transform = Compose([
-            ResizeShortestEdge(min_size, max_size, sample_style),
-        ])
-        return coco_val_transform
+from albumentations.augmentations.geometric import functional as F
+from albumentations import DualTransform
+import random
+from typing import Sequence, Dict, Tuple, Union
+
+
+class SmallestMaxSize_v2(DualTransform):
+    def __init__(
+            self,
+            max_size: Union[int, Sequence[int]] = 1024,
+            max_limit: int = 4096,
+            interpolation: int = cv2.INTER_LINEAR,
+            always_apply: bool = False,
+            p: float = 1,
+    ):
+        super(SmallestMaxSize_v2, self).__init__(always_apply, p)
+        self.interpolation = interpolation
+        self.max_size = max_size
+        self.max_limit = max_limit
+
+    def apply(
+            self, img: np.ndarray, max_size: int = 1024, max_limit: int = 4096, interpolation: int = cv2.INTER_LINEAR,
+            **params
+    ) -> np.ndarray:
+        img_h, img_w = img.shape[:2]
+        img_min = min(img_h, img_w)
+        img_max = max(img_h, img_w)
+        scale = max_size / img_min
+        scale_h, scale_w = scale * img_h, scale * img_w
+        if max(scale_h, scale_w) > max_limit:
+            scale = max_limit / img_max
+        max_size = scale * min(img_h, img_w)
+        return F.smallest_max_size(img, max_size=max_size, interpolation=interpolation)
+
+    def apply_to_bbox(self, bbox: Sequence[float], **params) -> Sequence[float]:
+        return bbox
+
+    def get_params(self) -> Dict[str, int]:
+        return {"max_size": self.max_size if isinstance(self.max_size, int) else random.choice(self.max_size),
+                "max_limit": self.max_limit}
+
+    def get_transform_init_args_names(self) -> Tuple[str, ...]:
+        return ("max_size", "interpolation", "max_limit")
