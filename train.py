@@ -13,7 +13,7 @@ from sparse_rcnn.dataloader.dataset import build_coco_transforms
 from sparse_rcnn.evaluation.coco_evaluation import COCOEvaluator
 from sparse_rcnn.loss import SparseRcnnLoss
 from sparse_rcnn.model import SparseRCNN
-from sparse_rcnn.solver.build_optimizer import build_optimizer, build_lr_scheduler
+from sparse_rcnn.solver import build_optimizer, build_lr_scheduler
 from sparse_rcnn.utils import common_utils, commu_utils
 from sparse_rcnn.utils.config import cfg_from_yaml_file, cfg, cfg_from_list, log_config_to_file
 from sparse_rcnn.utils.train_utils import checkpoint_state, save_checkpoint, load_checkpoint

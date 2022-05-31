@@ -10,7 +10,6 @@ from sparse_rcnn.dataloader import build_dataloader
 from sparse_rcnn.dataloader.dataset import build_coco_transforms
 from sparse_rcnn.evaluation.coco_evaluation import COCOEvaluator
 from sparse_rcnn.model import SparseRCNN
-from sparse_rcnn.solver.build_optimizer import build_optimizer
 from sparse_rcnn.utils import common_utils
 from sparse_rcnn.utils.config import cfg_from_yaml_file, cfg, cfg_from_list, log_config_to_file
 from sparse_rcnn.utils.train_utils import load_checkpoint
@@ -109,7 +108,7 @@ def main():
     logger.info("Model: \n{}".format(model))
 
     model.to(device)
-    optimizer = build_optimizer(cfg, model)
+    optimizer = None
     evaluator = COCOEvaluator(cfg.BASE_ROOT, 'coco_2017_val', logger)
 
     # if specified ckpt file, load it

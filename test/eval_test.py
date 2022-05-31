@@ -14,7 +14,7 @@ from sparse_rcnn.dataloader import build_dataloader
 from sparse_rcnn.dataloader.dataset import build_coco_transforms
 from sparse_rcnn.model import SparseRCNN
 from sparse_rcnn.loss import SparseRcnnLoss
-from sparse_rcnn.solver.build_optimizer import build_optimizer, build_lr_scheduler
+from sparse_rcnn.solver.__init__ import build_optimizer, build_lr_scheduler
 from sparse_rcnn.evaluation.coco_evaluation import COCOEvaluator
 
 def parse_args():

@@ -4,7 +4,7 @@ import env
 import matplotlib.pyplot as plt
 
 from sparse_rcnn.model import SparseRCNN
-from sparse_rcnn.solver.build_optimizer import build_optimizer, build_lr_scheduler
+from sparse_rcnn.solver.__init__ import build_optimizer, build_lr_scheduler
 
 
 from sparse_rcnn.utils.config import cfg_from_yaml_file, cfg
