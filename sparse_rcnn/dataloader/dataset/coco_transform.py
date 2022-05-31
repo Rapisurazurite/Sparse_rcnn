@@ -7,10 +7,10 @@ class Compose(object):
     def __init__(self, transforms):
         self.transforms = transforms
 
-    def __call__(self, image, boxes):
+    def __call__(self, image, bboxes):
         for t in self.transforms:
-            image, boxes = t(image, boxes)
-        return image, boxes
+            image, bboxes = t(image, bboxes)
+        return image, bboxes
 
     def __repr__(self):
         format_string = self.__class__.__name__ + "("
@@ -25,13 +25,13 @@ class RandomFlip(object):
     def __init__(self, prob=0.5):
         self.prob = prob
 
-    def __call__(self, image, boxes):
+    def __call__(self, image, bboxes):
         h, w, _ = image.shape
         if random.random() < self.prob:
-            for _box in boxes:
+            for _box in bboxes:
                 _box[0], _box[2] = w - _box[2], w - _box[0]
             image = image[:, ::-1]  # - np.zeros_like(image)
-        return image, boxes
+        return image, bboxes
 
 
 class ResizeTransform(object):
@@ -53,15 +53,15 @@ class ResizeTransform(object):
         self.new_h = new_h
         self.new_w = new_w
 
-    def __call__(self, img, boxes):
+    def __call__(self, img, bboxes):
         h, w, _ = img.shape
         img = cv2.resize(img, (self.new_w, self.new_h))
-        for _box in boxes:
+        for _box in bboxes:
             _box[0] *= self.new_w / w
             _box[1] *= self.new_h / h
             _box[2] *= self.new_w / w
             _box[3] *= self.new_h / h
-        return img, boxes
+        return img, bboxes
 
 
 class ResizeShortestEdge(object):
@@ -94,7 +94,7 @@ class ResizeShortestEdge(object):
                 f" Got {short_edge_length}!"
             )
 
-    def __call__(self, image, boxes):
+    def __call__(self, image, bboxes):
         h, w = image.shape[:2]
         if self.is_range:
             size = np.random.randint(self.short_edge_length[0], self.short_edge_length[1] + 1)
@@ -113,7 +113,7 @@ class ResizeShortestEdge(object):
         neww = int(neww + 0.5)
         newh = int(newh + 0.5)
 
-        return ResizeTransform(h, w, newh, neww, self.interp)(image, boxes)
+        return ResizeTransform(h, w, newh, neww, self.interp)(image, bboxes)
 
 
 # TODO: use albumentations to replace this

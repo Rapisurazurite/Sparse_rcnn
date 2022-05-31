@@ -153,7 +153,7 @@ class CocoDataset(Dataset):
         gt_classes = [coco_id_idx_map.index(t['category_id']) for t in target]
 
         if self.transform is not None:
-            img, gt_boxes = self.transform(img, gt_boxes)
+            img, gt_boxes = self.transform(image=img, bboxes=gt_boxes)
         if self.is_rgb == "RGB":
             try:
                 img = img[:, :, [2,1,0]]
