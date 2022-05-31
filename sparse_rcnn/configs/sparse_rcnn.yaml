@@ -23,7 +23,6 @@ MODEL:
     DROPOUT: 0.0
     ACTIVATION: "relu"
     NUM_HEADS: 6
-    DEEP_SUPERVISION: True
     USE_FOCAL: True
     PRIOR_PROB: 0.01
     DIM_DYNAMIC: 64

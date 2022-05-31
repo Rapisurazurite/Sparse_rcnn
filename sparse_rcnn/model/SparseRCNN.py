@@ -1,14 +1,12 @@
 from collections import namedtuple
+from typing import Dict
 
 import timm
 import torch
 from torch import nn
-from typing import List, Dict
 
-from ..loss.SetCriterion import SetCriterion
-from ..utils.HungarianMatcher import HungarianMatcher
-from ..utils.box_ops import box_cxcywh_to_xyxy
 from .head import DynamicHead
+from ..utils.box_ops import box_cxcywh_to_xyxy
 
 _available_backbones = {
     "resnet18": {"model_name": "resnet18",
