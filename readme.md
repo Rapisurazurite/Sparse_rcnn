@@ -11,7 +11,7 @@ AP : 35.747, AP50 : 53.073, AP75 : 38.319
 ## Roadmap
 - [x] Use albumentations instead of the basic transforms
 - [x] Add eval script and demo
-- [ ] fp16 mixed precision training
+- [x] fp16 mixed precision training
 - [ ] MAE
 - [ ] Voc dataset support 
 - [ ] Support for multiple GPUs
