@@ -7,6 +7,8 @@ from typing import Dict, Any
 
 import torch
 import tqdm
+from torch.cuda.amp import autocast
+from torch.cuda.amp import GradScaler
 
 from sparse_rcnn.dataloader import build_dataloader
 from sparse_rcnn.dataloader.dataset import build_coco_transforms
@@ -30,6 +32,9 @@ def parse_args():
     parser.add_argument("--max_checkpoints", type=int, default=5, help="maximum number of checkpoints to keep")
     parser.add_argument("--log_iter", type=int, default=200, help="log the model info every N iterations")
 
+    # fp16 mixed precision
+    parser.add_argument("--fp16_mix", action="store_true", help="use fp16 mixed precision")
+
     # Multi-GPU setting
     parser.add_argument('--launcher', choices=['none', 'pytorch', 'slurm'], default='none')
     parser.add_argument('--local_rank', type=int, default=0, help='local rank for distributed training')
@@ -50,11 +55,13 @@ def parse_args():
 
 def train_model(model, criterion, optimizer, evaluator, train_loader, test_loader, scheduler, start_epoch, total_epochs,
                 device, logger, ckpt_save_dir, args, cfg, extern_callback=None):
+    scaler = GradScaler() if args.fp16_mix else None
     model.train()
     with tqdm.trange(start_epoch, total_epochs, desc="epochs", ncols=120) as ebar:
         for cur_epoch in ebar:
+
             train_one_epoch(model, criterion, optimizer, train_loader, scheduler, cur_epoch, device, logger, args, cfg,
-                            ebar)
+                            ebar, scaler)
             if cfg.LOCAL_RANK == 0:
                 model_state = checkpoint_state(model=model, optimizer=optimizer, epoch=cur_epoch)
                 save_checkpoint(model_state, os.path.join(ckpt_save_dir, "checkpoint_epoch_%d" % cur_epoch),
@@ -90,7 +97,6 @@ def eval(evaluator, model, test_loader, cur_epoch, device, logger, args, cfg):
                 for k in t.keys():
                     if k in ['gt_boxes', 'gt_classes', 'image_size_xyxy', 'image_size_xyxy_tgt']:
                         t[k] = t[k].to(device)
-
             output = model(img, img_whwh)
             batch_size = img.shape[0]
 
@@ -113,7 +119,7 @@ def eval(evaluator, model, test_loader, cur_epoch, device, logger, args, cfg):
         return ret
 
 
-def train_one_epoch(model, criterion, optimizer, train_loader, scheduler, cur_epoch, device, logger, args, cfg, ebar):
+def train_one_epoch(model, criterion, optimizer, train_loader, scheduler, cur_epoch, device, logger, args, cfg, ebar, scaler):
     model.train()
 
     total_it_each_epoch = len(train_loader)
@@ -141,14 +147,26 @@ def train_one_epoch(model, criterion, optimizer, train_loader, scheduler, cur_ep
         scheduler.step(cur_epoch * total_it_each_epoch + cur_iter)
         optimizer.zero_grad()
 
-        output = model(img, img_whwh)
-        loss: Dict[str, Any] = criterion(output, label)
+        if args.fp16_mix:
+            with autocast():
+                output = model(img, img_whwh)
+                loss: Dict[str, Any] = criterion(output, label)
+        else:
+            output = model(img, img_whwh)
+            loss: Dict[str, Any] = criterion(output, label)
+
         weighted_loss = loss["weighted_loss"]
         forward_time = time.time()
         cur_forward_time = forward_time - data_time
 
-        weighted_loss.backward()
-        optimizer.step()
+        if args.fp16_mix:
+            scaler.scale(weighted_loss).backward()
+            scaler.unscale_(optimizer)
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            weighted_loss.backward()
+            optimizer.step()
         cur_batch_time = time.time() - end
 
         # average in different ranks
