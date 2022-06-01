@@ -16,11 +16,30 @@ AP : 35.747, AP50 : 53.073, AP75 : 38.319
 - [ ] Voc dataset support 
 - [ ] Support for multiple GPUs
 
-## Example 
-```
-python train.py --set BASE_ROOT /home/input/coco-2017-dataset/coco2017 SOLVER.IMS_PER_BATCH 4 MODEL.BACKBONE "resnet50"
-```
+## Example
 
+- train on coco dataset with resnet50 backbone
+
+    ```
+    python train.py --set BASE_ROOT /home/input/coco-2017-dataset/coco2017 SOLVER.IMS_PER_BATCH 4 MODEL.BACKBONE "resnet50"
+    ```
+
+- train on coco dataset using fp16 mixed precision training with efficientnet_b3 backbone
+
+    ```
+    python train.py \
+      --fp16_mix \
+      --set BASE_ROOT /home/input/coco-2017-dataset/coco2017 SOLVER.IMS_PER_BATCH 4 MODEL.BACKBONE "efficientnet_b3"
+    ```
+- or you can specify the backbone and dataset in config file
+
+    ```
+    python train.py \
+      --fp16_mix \
+      --dataset sparse_rcnn/configs/coco.yaml \
+      --model configs/sparse_rcnn.yaml
+    ```
+  
 ## Reference
 [original official implement](https://github.com/PeizeSun/SparseR-CNN) based on detectron2 and DETR
 ```text
