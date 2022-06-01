@@ -27,6 +27,12 @@ _available_backbones = {
                         "pretrained": True,
                         "num_classes": 0,
                         "global_pool": ""},
+    "efficientnet_b2a": {"model_name": "efficientnet_b2a",
+                         "features_only": True,
+                         "out_indices": (1, 2, 3, 4),
+                         "pretrained": True,
+                         "num_classes": 0,
+                         "global_pool": ""},
 }
 
 
@@ -80,7 +86,7 @@ class SparseRCNN(torch.nn.Module):
     def __init__(self, cfg, num_classes, backbone,
                  raw_outputs=False):
         super(SparseRCNN, self).__init__()
-        assert backbone in _available_backbones.keys(), f"{backbone} is not available"
+        assert backbone in _available_backbones.keys(), f"{backbone} is not available, currently we only support {_available_backbones.keys()}"
         self.cfg = cfg
         self.in_channels = 256
         self.raw_outputs = raw_outputs
