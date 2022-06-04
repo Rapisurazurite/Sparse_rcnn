@@ -40,6 +40,8 @@ def build_coco_transforms(cfg, mode="train"):
         min_size = cfg.INPUT.MIN_SIZE_TEST
         max_size = cfg.INPUT.MAX_SIZE_TEST
         coco_val_transform = A.Compose([
-            SmallestMaxSize_v2(max_size=min_size, max_limit=max_size, p=1)
-        ])
+            SmallestMaxSize_v2(max_size=min_size, max_limit=max_size, p=1)],
+            # x_min, y_min, x_max, y_max
+            bbox_params=A.BboxParams(format='pascal_voc', label_fields=["classes"])
+        )
         return coco_val_transform
