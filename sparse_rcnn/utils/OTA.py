@@ -160,7 +160,7 @@ class OtaMatcher(nn.Module):
             pi = pi / rescale_factor.unsqueeze(1)
             max_assigned_units, matched_gt_inds = torch.max(pi, dim=0)
 
-            # dude ! 
+            # dude !
             prop_indice = (matched_gt_inds != num_gt).nonzero().squeeze(-1)
             gt_indice = matched_gt_inds[prop_indice]
             indice.append((prop_indice, gt_indice))

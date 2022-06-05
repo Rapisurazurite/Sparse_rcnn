@@ -101,7 +101,6 @@ class SetCriterion(nn.Module):
 
     def _get_src_permutation_idx(self, indices):
         # permute predictions following indices
-        print(indices)
         batch_idx = torch.cat([torch.full_like(src, i) for i, (src, _) in enumerate(indices)])
         src_idx = torch.cat([src for (src, _) in indices])
         return batch_idx, src_idx
@@ -132,7 +131,8 @@ class SetCriterion(nn.Module):
         indices = self.matcher(outputs_without_aux, targets) # [(output_idx*k, target_idx)*N]
 
         # Compute the average number of target boxes accross all nodes, for normalization purposes
-        num_boxes = sum(len(t["gt_classes"]) for t in targets)
+        # num_boxes = sum(len(t["gt_classes"]) for t in targets)
+        num_boxes = sum([indices[i][1].numel() for i in range(len(indices))])
         num_boxes = torch.as_tensor([num_boxes], dtype=torch.float, device=next(iter(outputs.values())).device)
 
         # Compute all the requested losses
