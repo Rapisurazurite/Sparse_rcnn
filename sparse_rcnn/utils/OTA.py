@@ -169,5 +169,5 @@ class OtaMatcher(nn.Module):
             prop_indice = (matched_gt_inds != num_gt).nonzero().squeeze(-1)
             gt_indice = matched_gt_inds[prop_indice]
             indice.append((prop_indice, gt_indice))
-        print(f"\n in stage {t}, k = {self.k - 0.5*(T-t)}, matched: {[len(i[0]) for i in indice]}, n_gt: {[len(x['gt_classes']) for x in targets]}\n")
+        # print(f"\n in stage {t}, k = {self.k - 0.5*(T-t)}, matched: {[len(i[0]) for i in indice]}, n_gt: {[len(x['gt_classes']) for x in targets]}\n")
         return indice
