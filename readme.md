@@ -1,12 +1,8 @@
-# Sparse-RCNN inplementation 
+# Dynamic Sparse-RCNN inplementation 
 
-This is an unofficial pytorch implementation of SparseRCNN object detection as described in [Sparse R-CNN: End-to-End Object Detection with Learnable Proposals](https://arxiv.org/abs/2011.12450) by Peize Sun, Rufeng Zhang, Yi Jiang, Tao Kong, Chenfeng Xu, Wei Zhan, Masayoshi Tomizuka, Lei Li, Zehuan Yuan, Changhu Wang, Ping Luo
 
 ## Result
-I only train this model with resnet50 backbone on the coco dataset for 6 epochs, and the default max epochs is 30.
-```
-AP : 35.747, AP50 : 53.073, AP75 : 38.319
-```
+
 
 ## Roadmap
 - [x] Use albumentations instead of the basic transforms
@@ -15,6 +11,10 @@ AP : 35.747, AP50 : 53.073, AP75 : 38.319
 - [ ] MAE
 - [ ] Voc dataset support 
 - [ ] Support for multiple GPUs
+- [x] OTA assignment matcher
+- [x] Unit increase strategy
+- [ ] Dynamic k estimation
+- [ ] Dynamic Proposal Generation
 
 ## Example
 

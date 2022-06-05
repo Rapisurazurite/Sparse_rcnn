@@ -26,6 +26,7 @@ class SetCriterion(nn.Module):
         super().__init__()
         self.cfg = cfg
         self.num_classes = num_classes
+        self.num_heads = cfg.MODEL.SparseRCNN.NUM_HEADS
         self.matcher = matcher
         self.weight_dict = weight_dict
         self.eos_coef = eos_coef
@@ -128,7 +129,7 @@ class SetCriterion(nn.Module):
         """
         outputs_without_aux = {k: v for k, v in outputs.items() if k != 'aux_outputs'}
         # Retrieve the matching between the outputs of the last layer and the targets
-        indices = self.matcher(outputs_without_aux, targets) # [(output_idx*k, target_idx)*N]
+        indices = self.matcher(outputs_without_aux, targets, T=self.num_heads, t=self.num_heads) # [(output_idx*k, target_idx)*N]
 
         # Compute the average number of target boxes accross all nodes, for normalization purposes
         # num_boxes = sum(len(t["gt_classes"]) for t in targets)
@@ -143,7 +144,7 @@ class SetCriterion(nn.Module):
         # In case of auxiliary losses, we repeat this process with the output of each intermediate layer.
         if 'aux_outputs' in outputs:
             for i, aux_outputs in enumerate(outputs['aux_outputs']):
-                indices = self.matcher(aux_outputs, targets)
+                indices = self.matcher(aux_outputs, targets, T=self.num_heads, t=i+1)
                 for loss in self.losses:
                     if loss == 'masks':
                         # Intermediate masks losses are too costly to compute, we ignore them.

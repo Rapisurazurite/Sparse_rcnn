@@ -82,7 +82,7 @@ class OtaMatcher(nn.Module):
         assert cost_class != 0 or cost_bbox != 0 or cost_giou != 0, "all costs cant be 0"
 
     @torch.no_grad()
-    def forward(self, outputs, targets):
+    def forward(self, outputs, targets, T=6, t=6):
         """ Performs the matching
 
         Params:
@@ -94,6 +94,8 @@ class OtaMatcher(nn.Module):
                  "labels": Tensor of dim [num_target_boxes] (where num_target_boxes is the number of ground-truth
                            objects in the target) containing the class labels
                  "boxes": Tensor of dim [num_target_boxes, 4] containing the target box coordinates
+            T: Number of iterations of rcnn head.
+            t: index of current iteration of rcnn head. range [1, T].
 
         Returns:
             A list of size batch_size, containing tuples of (index_i, index_j) where:
@@ -102,6 +104,9 @@ class OtaMatcher(nn.Module):
             For each batch element, it holds:
                 len(index_i) = len(index_j) = min(num_queries, num_target_boxes)
         """
+        if self.k > 0:
+            assert self.k - 0.5 * (T - 1) > 0, "k should be greater than 0.5*(T-1) to ensure the min(k) > 0"
+
         bs, num_queries = outputs["pred_logits"].shape[:2]
         indice = []
 
@@ -150,7 +155,7 @@ class OtaMatcher(nn.Module):
             mu = cost_giou.new_ones(num_gt + 1)
             # static K
             if self.k > 0:
-                mu[:-1] = self.k
+                mu[:-1] = self.k - 0.5*(T-t)
             else:
                 raise NotImplementedError
             mu[:-1] = num_queries - mu[:-1].sum()
