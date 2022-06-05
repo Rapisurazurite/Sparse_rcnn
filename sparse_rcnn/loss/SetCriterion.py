@@ -92,7 +92,7 @@ class SetCriterion(nn.Module):
         loss_giou = 1 - torch.diag(box_ops.generalized_box_iou(src_boxes, target_boxes))
         losses['loss_giou'] = loss_giou.sum() / num_boxes
 
-        image_size = torch.cat([v["image_size_xyxy_tgt"] for v in targets])
+        image_size = torch.cat([t['image_size_xyxy_tgt'][i] for t, (_, i) in zip(targets, indices)], dim=0)
         src_boxes_ = src_boxes / image_size
         target_boxes_ = target_boxes / image_size
         loss_bbox = F.l1_loss(src_boxes_, target_boxes_, reduction='none')
