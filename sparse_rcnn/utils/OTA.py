@@ -61,7 +61,7 @@ class SinkhornDistance(torch.nn.Module):
 
 class OtaMatcher(nn.Module):
     def __init__(self, cfg, cost_class: float = 1, cost_bbox: float = 1, cost_giou: float = 1, cost_bg: float = 1,
-                 use_focal: bool = False, k: int = 3):
+                 use_focal: bool = False):
         super().__init__()
         self.cost_class = cost_class
         self.cost_bbox = cost_bbox
@@ -70,8 +70,10 @@ class OtaMatcher(nn.Module):
         self.cost_bg = cost_bg
         self.num_classes = cfg.MODEL.SparseRCNN.NUM_CLASSES
 
-        self.k = k if k > 0 else -1
-        self.sinkhorn = SinkhornDistance(eps=cfg.LOSS.MATCHER.EPS)
+        self.k = cfg.MODEL.LOSS.MATCHER.K
+        self.k = self.k if self.k > 0 else -1
+
+        self.sinkhorn = SinkhornDistance(eps=cfg.MODEL.LOSS.MATCHER.EPS)
 
         if self.use_focal:
             self.focal_loss_alpha = cfg.MODEL.LOSS.FOCAL_LOSS_ALPHA

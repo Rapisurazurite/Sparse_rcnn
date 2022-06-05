@@ -35,6 +35,9 @@ MODEL:
     GIOU_WEIGHT: 2.0
     L1_WEIGHT: 5.0
     NO_OBJECT_WEIGHT: 0.1
+    MATCHER:
+      EPS: 1e-3
+      K : 3
 
 SOLVER:
   IMS_PER_BATCH: 1
