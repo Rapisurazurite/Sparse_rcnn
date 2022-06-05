@@ -36,7 +36,7 @@ MODEL:
     L1_WEIGHT: 5.0
     NO_OBJECT_WEIGHT: 0.1
     MATCHER:
-      EPS: 1e-3
+      EPS: 0.001
       K : 3
 
 SOLVER:
