@@ -3,17 +3,76 @@ import torch
 from fvcore.nn import sigmoid_focal_loss_jit
 from torch import nn
 from torch.nn import functional as F
+from torchvision.ops import generalized_box_iou
+
+
+class SinkhornDistance(torch.nn.Module):
+    r"""
+        Given two empirical measures each with :math:`P_1` locations
+        :math:`x\in\mathbb{R}^{D_1}` and :math:`P_2` locations :math:`y\in\mathbb{R}^{D_2}`,
+        outputs an approximation of the regularized OT cost for point clouds.
+        Args:
+        eps (float): regularization coefficient
+        max_iter (int): maximum number of Sinkhorn iterations
+        reduction (string, optional): Specifies the reduction to apply to the output:
+        'none' | 'mean' | 'sum'. 'none': no reduction will be applied,
+        'mean': the sum of the output will be divided by the number of
+        elements in the output, 'sum': the output will be summed. Default: 'none'
+        Shape:
+            - Input: :math:`(N, P_1, D_1)`, :math:`(N, P_2, D_2)`
+            - Output: :math:`(N)` or :math:`()`, depending on `reduction`
+    """
+
+    def __init__(self, eps=1e-3, max_iter=100, reduction='none'):
+        super(SinkhornDistance, self).__init__()
+        self.eps = eps
+        self.max_iter = max_iter
+        self.reduction = reduction
+
+    def forward(self, mu, nu, C):
+        u = torch.ones_like(mu)
+        v = torch.ones_like(nu)
+
+        # Sinkhorn iterations
+        for i in range(self.max_iter):
+            v = self.eps * \
+                (torch.log(
+                    nu + 1e-8) - torch.logsumexp(self.M(C, u, v).transpose(-2, -1), dim=-1)) + v
+            u = self.eps * \
+                (torch.log(
+                    mu + 1e-8) - torch.logsumexp(self.M(C, u, v), dim=-1)) + u
+
+        U, V = u, v
+        # Transport plan pi = diag(a)*K*diag(b)
+        pi = torch.exp(
+            self.M(C, U, V)).detach()
+        # Sinkhorn distance
+        cost = torch.sum(
+            pi * C, dim=(-2, -1))
+        return cost, pi
+
+    def M(self, C, u, v):
+        '''
+        "Modified cost for logarithmic updates"
+        "$M_{ij} = (-c_{ij} + u_i + v_j) / epsilon$"
+        '''
+        return (-C + u.unsqueeze(-1) + v.unsqueeze(-2)) / self.eps
 
 
 class OtaMatcher(nn.Module):
-    def __init__(self, cfg, cost_class: float = 1, cost_bbox: float = 1, cost_giou: float = 1,
-                 use_focal: bool = False):
+    def __init__(self, cfg, cost_class: float = 1, cost_bbox: float = 1, cost_giou: float = 1, cost_bg: float = 1,
+                 use_focal: bool = False, k: int = 3):
         super().__init__()
         self.cost_class = cost_class
         self.cost_bbox = cost_bbox
         self.cost_giou = cost_giou
         self.use_focal = use_focal
+        self.cost_bg = cost_bg
         self.num_classes = cfg.MODEL.SparseRCNN.NUM_CLASSES
+
+        self.k = k if k > 0 else -1
+        self.sinkhorn = SinkhornDistance(eps=1e-2)
+
         if self.use_focal:
             self.focal_loss_alpha = cfg.MODEL.LOSS.FOCAL_LOSS_ALPHA
             self.focal_loss_gamma = cfg.MODEL.LOSS.FOCAL_LOSS_GAMMA
@@ -41,13 +100,14 @@ class OtaMatcher(nn.Module):
                 len(index_i) = len(index_j) = min(num_queries, num_target_boxes)
         """
         bs, num_queries = outputs["pred_logits"].shape[:2]
+        indice = []
 
         for index in range(bs):
-            tgt_ids = targets[index]["gt_classes"]
-            tgt_boxes = targets[index]["gt_boxes"]
+            tgt_ids = targets[index]["gt_classes"]  # [num_target_boxes]
+            tgt_bbox = targets[index]["gt_boxes"]  # [num_target_boxes, 4]
             num_gt = len(tgt_ids)
-            out_prob = outputs["pred_logits"][index]
-            out_boxes = outputs["pred_boxes"][index]
+            out_prob = outputs["pred_logits"][index]  # [num_queries, num_classes]
+            out_bbox = outputs["pred_boxes"][index]  # [num_queries, 4]
 
             # Compute the focal loss for each image
             if self.use_focal:
@@ -67,16 +127,37 @@ class OtaMatcher(nn.Module):
                     alpha=alpha,
                     gamma=gamma,
                     reduction="none"
-                )  # [num_queries]
+                ).sum(dim=-1)  # [num_queries]
             else:
                 raise NotImplementedError
 
             # Compute the L1 loss for each image
-            image_size_out = targets["image_size_xyxy"][index]
-            out_boxes_ = out_boxes/image_size_out
-            image_size_tgt = targets["image_size_xyxy_tgt"][index]
-            tgt_boxes_ = tgt_boxes/image_size_tgt
-            cost_bbox = torch.cdist()
+            image_size_out = targets[index]["image_size_xyxy"]
+            out_bbox_ = out_bbox / image_size_out
+            image_size_tgt = targets[index]["image_size_xyxy_tgt"]
+            tgt_bbox_ = tgt_bbox / image_size_tgt
+            cost_bbox = torch.cdist(tgt_bbox_, out_bbox_, p=1)
 
+            # Compute the GIoU loss for each image
+            cost_giou = -generalized_box_iou(tgt_bbox, out_bbox)
 
+            loss = self.cost_class * loss_cls + self.cost_bbox * cost_bbox + self.cost_giou * cost_giou
+            loss = torch.cat([loss, self.cost_bg * loss_bg.unsqueeze(0)], dim=0)  # [num_gt + 1, num_queries]
 
+            mu = cost_giou.new_ones(num_gt + 1)
+            # static K
+            if self.k > 0:
+                mu[:-1] = self.k
+            else:
+                raise NotImplementedError
+            mu[:-1] = num_queries - mu[:-1].sum()
+            nu = cost_giou.new_ones(num_queries)
+            _, pi = self.sinkhorn(mu, nu, loss)
+            rescale_factor, _ = pi.max(dim=1)
+            pi = pi / rescale_factor.unsqueeze(1)
+            max_assigned_units, matched_gt_inds = torch.max(pi, dim=0)
+
+            prop_indice = (matched_gt_inds != num_gt).nonzero().squeeze()
+            gt_indice = matched_gt_inds[prop_indice]
+            indice.append((prop_indice, gt_indice))
+        return indice
