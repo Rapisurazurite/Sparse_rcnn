@@ -111,8 +111,8 @@ class OtaMatcher(nn.Module):
         indice = []
 
         for index in range(bs):
-            tgt_ids = targets[index]["gt_classes"]  # [num_target_boxes]
-            tgt_bbox = targets[index]["gt_boxes"]  # [num_target_boxes, 4]
+            tgt_ids = targets[index]["gt_classes"].reshape(-1)  # [num_target_boxes]
+            tgt_bbox = targets[index]["gt_boxes"].reshape(-1, 4)  # [num_target_boxes, 4]
             num_gt = len(tgt_ids)
             out_prob = outputs["pred_logits"][index]  # [num_queries, num_classes]
             out_bbox = outputs["pred_boxes"][index]  # [num_queries, 4]
