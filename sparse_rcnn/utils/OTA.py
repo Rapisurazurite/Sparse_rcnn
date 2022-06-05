@@ -71,7 +71,7 @@ class OtaMatcher(nn.Module):
         self.num_classes = cfg.MODEL.SparseRCNN.NUM_CLASSES
 
         self.k = k if k > 0 else -1
-        self.sinkhorn = SinkhornDistance(eps=1e-2)
+        self.sinkhorn = SinkhornDistance(eps=cfg.LOSS.MATCHER.EPS)
 
         if self.use_focal:
             self.focal_loss_alpha = cfg.MODEL.LOSS.FOCAL_LOSS_ALPHA
