@@ -20,7 +20,6 @@ def parse_args():
     parser.add_argument("--dataset", type=str, default="sparse_rcnn/configs/coco.yaml")
     parser.add_argument("--model", type=str, default="sparse_rcnn/configs/sparse_rcnn.yaml")
     parser.add_argument("--extra_tag", type=str, default="default")
-    parser.add_argument("--max_checkpoints", type=int, default=5)
     parser.add_argument("--ckpt", type=str, default=None)
     parser.add_argument("--split", type=str, default="coco_2017_val")
     parser.add_argument('--set', dest='set_cfgs', default=None, nargs=argparse.REMAINDER,
@@ -90,12 +89,14 @@ def main():
     logger.info('**********************Start logging**********************')
     log_config_to_file(cfg, logger=logger)
     # ------------ Create dataloader ------------
+    mode = args.split.split("_")[-1]
+
     test_loader = build_dataloader(cfg,
                                    transforms=build_coco_transforms(cfg, mode="val"),
                                    batch_size=cfg.SOLVER.IMS_PER_BATCH,
                                    dist=False,
                                    workers=4,
-                                   mode="val")
+                                   mode=mode)
 
     model = SparseRCNN(
         cfg,
