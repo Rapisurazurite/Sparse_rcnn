@@ -76,7 +76,14 @@ class COCOEvaluator:
         cache_path = os.path.join(self._output_dir, f"{dataset_name}_coco_format.json")
         self.json_file = cache_path
 
-        json_file = root + '/annotations/instances_val2017.json'
+        dataset = dataset_name.split('_')[-1]+dataset_name.split('_')[-2]
+        mode = dataset_name.split('_')[-1]
+        if mode == 'train':
+            json_file = root + '/annotations/instances_train2017.json'
+        elif mode == 'val':
+            json_file = root + '/annotations/instances_val2017.json'
+        else:
+            raise ValueError('Wrong DATASETS. Only support coco_2017_train and coco_2017_val')
         self._coco_api = COCO(json_file)
 
         # Test set json files do not contain annotations (evaluation must be
