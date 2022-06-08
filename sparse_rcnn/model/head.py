@@ -101,6 +101,8 @@ class DynamicHead(nn.Module):
         if init_features.shape.__len__() == 2:
             init_features = init_features[None].repeat(1, bs, 1)
             proposal_features = init_features.clone()
+        else:
+            proposal_features = init_features
 
         for _idx, rcnn_head in enumerate(self.head_series):
             class_logits, pred_bboxes, proposal_features = rcnn_head(features, bboxes, proposal_features,
