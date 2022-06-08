@@ -58,7 +58,7 @@ class ShapeSpec(namedtuple("_ShapeSpec", ["channels", "height", "width", "stride
 
 
 class StaircaseStructure(nn.Module):
-    def __init__(self, c2, c3, c4, c5, num_experts, num_proposals, bias=False):
+    def __init__(self, c2, c3, c4, c5, num_experts, num_proposals, bias=True):
         super(StaircaseStructure, self).__init__()
         self.interpolate_size = 30
         self.out_channels = num_experts * num_proposals
@@ -117,8 +117,8 @@ class DynamicProposalGenerator(torch.nn.Module):
     def forward(self, features):
         expert_weight = self.expert_weight_layer(*features) # [batch_size, num_proposals, num_experts]
 
-        proposal_boxes = torch.matmul(expert_weight, self.init_proposal_boxes.weight)  # [batch_size, num_proposal, 4]
-        proposal_features = torch.matmul(expert_weight, self.init_proposal_features.weight) # [batch_size, num_proposal, 256]
+        proposal_boxes = torch.matmul(expert_weight, self.init_proposal_boxes.weight.clone())  # [batch_size, num_proposal, 4]
+        proposal_features = torch.matmul(expert_weight, self.init_proposal_features.weight.clone()) # [batch_size, num_proposal, 256]
 
         return proposal_boxes, proposal_features
 
