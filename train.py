@@ -204,7 +204,7 @@ def train_one_epoch(model, criterion, optimizer, train_loader, scheduler, cur_ep
                 # TODO: debug
                 proposaL_box = model.dynamic_proposal_generator.init_proposal_boxes.weight.data.cpu().numpy()
                 logger.info(f"proposaL_box: {proposaL_box}")
-        
+
 
     # --------------- after train one epoch ---------------
     logger.info("Epoch: {} finished!".format(cur_epoch))
