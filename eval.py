@@ -105,7 +105,7 @@ def main():
 
     model.to(device)
     optimizer = None
-    evaluator = COCOEvaluator(cfg.BASE_ROOT, 'coco_2017_val', logger)
+    evaluator = COCOEvaluator(cfg.BASE_ROOT, cfg.DATASETS.TEST[0], logger)
 
     # if specified ckpt file, load it
     if args.ckpt:
