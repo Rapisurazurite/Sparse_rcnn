@@ -22,6 +22,7 @@ def parse_args():
     parser.add_argument("--extra_tag", type=str, default="default")
     parser.add_argument("--max_checkpoints", type=int, default=5)
     parser.add_argument("--ckpt", type=str, default=None)
+    parser.add_argument("--split", type=str, default="coco_2017_val")
     parser.add_argument('--set', dest='set_cfgs', default=None, nargs=argparse.REMAINDER,
                         help='set extra config keys if needed')
     args = parser.parse_args()
@@ -106,7 +107,7 @@ def main():
 
     model.to(device)
     optimizer = None
-    evaluator = COCOEvaluator(cfg.BASE_ROOT, 'coco_2017_val', logger)
+    evaluator = COCOEvaluator(cfg.BASE_ROOT, args.split, logger)
 
     # if specified ckpt file, load it
     if args.ckpt:
