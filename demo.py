@@ -9,7 +9,7 @@ import torch.nn.functional as F
 
 from sparse_rcnn.dataloader import CocoDataset
 from sparse_rcnn.dataloader.dataset import build_coco_transforms
-from sparse_rcnn.model import SparseRCNN
+from sparse_rcnn.model import SparseRCNN, build_model
 from sparse_rcnn.utils.config import cfg_from_yaml_file, cfg, cfg_from_list
 
 
@@ -81,10 +81,15 @@ def main():
     transform = build_coco_transforms(cfg, mode="val")
     dataset = CocoDataset(cfg, mode="val", transform=transform)
     # dataloader = build_dataloader(cfg, transform, batch_size=1, dist=False, workers=0, mode="val")
-    model = SparseRCNN(
+    # model = SparseRCNN(
+    #     cfg,
+    #     num_classes=cfg.MODEL.SparseRCNN.NUM_CLASSES,
+    #     backbone=cfg.MODEL.BACKBONE
+    # )
+    model = build_model(
         cfg,
         num_classes=cfg.MODEL.SparseRCNN.NUM_CLASSES,
-        backbone="resnet18"
+        backbone=cfg.MODEL.BACKBONE
     )
     ckpt_dir = "./output/default/ckpt"
     load_checkpoint(model, optimizer=None, ckpt_dir=ckpt_dir, logger=None)

@@ -14,7 +14,7 @@ from sparse_rcnn.dataloader import build_dataloader
 from sparse_rcnn.dataloader.dataset import build_coco_transforms
 from sparse_rcnn.evaluation.coco_evaluation import COCOEvaluator
 from sparse_rcnn.loss import SparseRcnnLoss
-from sparse_rcnn.model import SparseRCNN
+from sparse_rcnn.model import SparseRCNN, build_model
 from sparse_rcnn.solver import build_optimizer, build_lr_scheduler
 from sparse_rcnn.utils import common_utils, commu_utils
 from sparse_rcnn.utils.config import cfg_from_yaml_file, cfg, cfg_from_list, log_config_to_file
@@ -255,11 +255,17 @@ def main():
                                    mode="val")
 
     # --------------- Create model ---------------
-    model = SparseRCNN(
+    # model = SparseRCNN(
+    #     cfg,
+    #     num_classes=cfg.MODEL.SparseRCNN.NUM_CLASSES,
+    #     backbone=cfg.MODEL.BACKBONE
+    # )
+    model = build_model(
         cfg,
         num_classes=cfg.MODEL.SparseRCNN.NUM_CLASSES,
         backbone=cfg.MODEL.BACKBONE
     )
+
     if args.sync_bn:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
 

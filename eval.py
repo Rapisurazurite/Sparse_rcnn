@@ -9,7 +9,7 @@ import tqdm
 from sparse_rcnn.dataloader import build_dataloader
 from sparse_rcnn.dataloader.dataset import build_coco_transforms
 from sparse_rcnn.evaluation.coco_evaluation import COCOEvaluator
-from sparse_rcnn.model import SparseRCNN
+from sparse_rcnn.model import SparseRCNN, build_model
 from sparse_rcnn.utils import common_utils
 from sparse_rcnn.utils.config import cfg_from_yaml_file, cfg, cfg_from_list, log_config_to_file
 from sparse_rcnn.utils.train_utils import load_checkpoint
@@ -95,7 +95,12 @@ def main():
                                    workers=4,
                                    mode="val")
 
-    model = SparseRCNN(
+    # model = SparseRCNN(
+    #     cfg,
+    #     num_classes=cfg.MODEL.SparseRCNN.NUM_CLASSES,
+    #     backbone=cfg.MODEL.BACKBONE
+    # )
+    model = build_model(
         cfg,
         num_classes=cfg.MODEL.SparseRCNN.NUM_CLASSES,
         backbone=cfg.MODEL.BACKBONE
