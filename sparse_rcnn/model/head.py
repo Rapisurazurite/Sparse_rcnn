@@ -98,7 +98,7 @@ class DynamicHead(nn.Module):
         bboxes = init_bboxes
 
         # if init_features do not contain batchsize dim
-        if init_features.shape().__len__() == 2:
+        if init_features.shape.__len__() == 2:
             init_features = init_features[None].repeat(1, bs, 1)
             proposal_features = init_features.clone()
 
