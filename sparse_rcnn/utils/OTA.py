@@ -74,7 +74,7 @@ class OtaMatcher(nn.Module):
         self.k = self.k if self.k > 0 else -1
 
         eps = float(cfg.MODEL.LOSS.MATCHER.EPS)
-        self.sinkhorn = SinkhornDistance(eps=eps, max_iter=20)
+        self.sinkhorn = SinkhornDistance(eps=eps, max_iter=100)
 
         if self.use_focal:
             self.focal_loss_alpha = cfg.MODEL.LOSS.FOCAL_LOSS_ALPHA
