@@ -20,13 +20,13 @@ class SparseRcnnLoss(nn.Module):
         weight_dict = {"loss_ce": class_weight, "loss_bbox": l1_weight, "loss_giou": giou_weight}
         losses = ["labels", "boxes"]
 
-        if cfg.MODEL.LOSS.MATCHER == "HungarianMatcher":
+        if cfg.MODEL.LOSS.MATCHER.NAME == "HungarianMatcher":
             matcher = HungarianMatcher(cfg=cfg,
                                        cost_class=class_weight,
                                        cost_bbox=l1_weight,
                                        cost_giou=giou_weight,
                                        use_focal=self.use_focal)
-        elif cfg.MODEL.LOSS.MATCHER == "OtaMatcher":
+        elif cfg.MODEL.LOSS.MATCHER.NAME == "OtaMatcher":
             matcher = OtaMatcher(cfg=cfg,
                                  cost_class=class_weight,
                                  cost_bbox=l1_weight,
