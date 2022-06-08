@@ -112,11 +112,11 @@ class DynamicProposalGenerator(torch.nn.Module):
         # nn.init.constant_(self.init_proposal_boxes.weight[:, 2:], 1.0)  # size
         # nn.init.uniform_(self.init_proposal_boxes.weight[:, :2], 0.3, 0.7)  # center
         # nn.init.uniform_(self.init_proposal_boxes.weight[:, 2:], 0.4, 0.6)
-        self.init_proposal_boxes.weight.data.fill_(0)
-        self.init_proposal_boxes.weight[0, [0, 2]] = 1
-        self.init_proposal_boxes.weight[1, [1, 3]] = 1
-        self.init_proposal_boxes.weight[2, [0, 1]] = 1
-        self.init_proposal_boxes.weight[3, [2, 3]] = 1
+        nn.init.constant_(self.init_proposal_boxes.weight, 0)  
+        nn.init.constant_(self.init_proposal_boxes.weight[0, [0, 2]], 1)
+        nn.init.constant_(self.init_proposal_boxes.weight[1, [1, 3]], 1)
+        nn.init.constant_(self.init_proposal_boxes.weight[2, [0, 1]], 1)
+        nn.init.constant_(self.init_proposal_boxes.weight[3, [2, 3]], 1)
 
         self.expert_weight_layer = StaircaseStructure(*fpn_feature_channels,
                                                       num_experts=self.num_experts, num_proposals=self.num_proposals)
