@@ -11,6 +11,8 @@
 - [ ] MAE
 - [ ] Voc dataset support 
 - [ ] Support for multiple GPUs
+ 
+Dynamic Sparse-RCNN
 - [x] OTA assignment matcher
 - [x] Unit increase strategy
 - [ ] Dynamic k estimation

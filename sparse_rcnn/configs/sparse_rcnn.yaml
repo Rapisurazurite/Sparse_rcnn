@@ -3,6 +3,7 @@ DATALOADER:
 DEVICE: "cuda"
 SEED: 40244023
 MODEL:
+  NAME: "SparseRCNN"
   BACKBONE: "resnet18"
   NUM_PROPOSALS: 128
   FPN:
@@ -36,8 +37,7 @@ MODEL:
     L1_WEIGHT: 5.0
     NO_OBJECT_WEIGHT: 0.1
     MATCHER:
-      EPS: 0.001
-      K : 3
+      NAME: "HungarianMatcher"
 
 SOLVER:
   IMS_PER_BATCH: 1

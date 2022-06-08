@@ -20,18 +20,21 @@ class SparseRcnnLoss(nn.Module):
         weight_dict = {"loss_ce": class_weight, "loss_bbox": l1_weight, "loss_giou": giou_weight}
         losses = ["labels", "boxes"]
 
-        # matcher = HungarianMatcher(cfg=cfg,
-        #                            cost_class=class_weight,
-        #                            cost_bbox=l1_weight,
-        #                            cost_giou=giou_weight,
-        #                            use_focal=self.use_focal)
-
-        matcher = OtaMatcher(cfg=cfg,
-                             cost_class=class_weight,
-                             cost_bbox=l1_weight,
-                             cost_giou=giou_weight,
-                             cost_bg=2,
-                             use_focal=self.use_focal)
+        if cfg.MODEL.LOSS.MATCHER == "HungarianMatcher":
+            matcher = HungarianMatcher(cfg=cfg,
+                                       cost_class=class_weight,
+                                       cost_bbox=l1_weight,
+                                       cost_giou=giou_weight,
+                                       use_focal=self.use_focal)
+        elif cfg.MODEL.LOSS.MATCHER == "OtaMatcher":
+            matcher = OtaMatcher(cfg=cfg,
+                                 cost_class=class_weight,
+                                 cost_bbox=l1_weight,
+                                 cost_giou=giou_weight,
+                                 cost_bg=2,
+                                 use_focal=self.use_focal)
+        else:
+            raise NotImplementedError
 
         self.criterion = SetCriterion(cfg=cfg,
                                       num_classes=self.num_classes,

@@ -4,36 +4,11 @@ from typing import Dict
 import timm
 import torch
 from torch import nn
+from torch.nn import functional as F
 
 from .head import DynamicHead
 from ..utils.box_ops import box_cxcywh_to_xyxy
-
-_available_backbones = {
-    "resnet18": {"model_name": "resnet18",
-                 "features_only": True,
-                 "out_indices": (1, 2, 3, 4),
-                 "pretrained": True,
-                 "num_classes": 0,
-                 "global_pool": ""},
-    "resnet50": {"model_name": "resnet50",
-                 "features_only": True,
-                 "out_indices": (1, 2, 3, 4),
-                 "pretrained": True,
-                 "num_classes": 0,
-                 "global_pool": ""},
-    "efficientnet_b3": {"model_name": "efficientnet_b3",
-                        "features_only": True,
-                        "out_indices": (1, 2, 3, 4),
-                        "pretrained": True,
-                        "num_classes": 0,
-                        "global_pool": ""},
-    "efficientnet_b2a": {"model_name": "efficientnet_b2a",
-                         "features_only": True,
-                         "out_indices": (1, 2, 3, 4),
-                         "pretrained": True,
-                         "num_classes": 0,
-                         "global_pool": ""},
-}
+from .available_backbones import _available_backbones
 
 
 class FPN(nn.Module):
@@ -82,10 +57,76 @@ class ShapeSpec(namedtuple("_ShapeSpec", ["channels", "height", "width", "stride
         return super().__new__(cls, channels, height, width, stride)
 
 
-class SparseRCNN(torch.nn.Module):
+class StaircaseStructure(nn.Module):
+    def __init__(self, c2, c3, c4, c5, num_experts, num_proposals, bias=False):
+        super(StaircaseStructure, self).__init__()
+        self.interpolate_size = 30
+        self.out_channels = num_experts * num_proposals
+        self.num_experts = num_experts
+        self.num_proposals = num_proposals
+
+        start_channel = 0
+        for i, c in enumerate([c2, c3, c4, c5]):
+            start_channel += c
+            dw = nn.Sequential(
+                nn.Conv2d(start_channel, start_channel, kernel_size=3, stride=2, padding=1, bias=bias,
+                          groups=start_channel),
+                nn.BatchNorm2d(start_channel),
+                nn.ReLU(inplace=True)
+            )
+            setattr(self, f"dw{i+1}", dw)
+
+        self.relu = nn.ReLU(inplace=True)
+        self.linear = nn.Sequential(
+            nn.Linear(in_features=self.interpolate_size ** 2, out_features=1500),
+            nn.ReLU(inplace=True),
+            nn.Linear(in_features=1500, out_features=self.out_channels)
+        )
+        self.softmax = nn.Softmax(dim=-1)
+
+    def forward(self, c2, c3, c4, c5):
+        latent_2 = self.dw1(c2)
+        latent_3 = self.dw2(torch.cat([latent_2, c3], dim=1))
+        latent_4 = self.dw3(torch.cat([latent_3, c4], dim=1))
+        latent_5 = self.dw4(torch.cat([latent_4, c5], dim=1))
+        out = F.interpolate(input=latent_5, size=(self.interpolate_size, self.interpolate_size))
+
+        #  You should reshape the tensor first, then use softmax in num_expert dimension. that cause
+        #  [batch_size, num_expert, num_props] tensor, and then consider num_props dimension ,has the weight of length num_expert.
+        #  then abatain the num_prop proposal, each proposal is the weight sum of initial proposal features.
+        out = out.sum(dim=1).flatten(1) #[batch_size, 900]
+        out = self.linear(out) #[batch_size, num_experts * num_proposals]
+        out = out.reshape([-1, self.num_proposals, self.num_experts])
+        out = self.softmax(out)
+        return out
+
+
+class DynamicProposalGenerator(torch.nn.Module):
+    def __init__(self, cfg, fpn_feature_channels):
+        super(DynamicProposalGenerator, self).__init__()
+        self.cfg = cfg
+        self.num_experts = cfg.MODEL.NUM_EXPERTS
+        self.num_proposals = cfg.MODEL.NUM_PROPOSALS
+        self.init_proposal_features = nn.Embedding(self.num_experts, 256)
+        self.init_proposal_boxes = nn.Embedding(self.num_experts, 4)  # cx, cy, w, h
+        nn.init.constant_(self.init_proposal_boxes.weight[:, :2], 0.5)  # center
+        nn.init.constant_(self.init_proposal_boxes.weight[:, 2:], 1.0)  # size
+        self.expert_weight_layer = StaircaseStructure(*fpn_feature_channels,
+                                                      num_experts=self.num_experts, num_proposals=self.num_proposals)
+
+    def forward(self, features):
+        expert_weight = self.expert_weight_layer(*features) # [batch_size, num_proposals, num_experts]
+
+        proposal_boxes = torch.matmul(expert_weight, self.init_proposal_boxes.weight)  # [batch_size, num_proposal, 4]
+        proposal_features = torch.matmul(expert_weight, self.init_proposal_features.weight) # [batch_size, num_proposal, 256]
+
+        return proposal_boxes, proposal_features
+
+
+class DynamicSparseRCNN(torch.nn.Module):
     def __init__(self, cfg, num_classes, backbone,
                  raw_outputs=False):
-        super(SparseRCNN, self).__init__()
+        super(DynamicSparseRCNN, self).__init__()
         assert backbone in _available_backbones.keys(), f"{backbone} is not available, currently we only support {_available_backbones.keys()}"
         self.cfg = cfg
         self.in_channels = 256
@@ -93,14 +134,10 @@ class SparseRCNN(torch.nn.Module):
         # model components
         self.backbone: nn.Module = timm.create_model(**_available_backbones[backbone])
         self.fpn = FPN(*self.backbone.feature_info.channels(), inner_channel=cfg.MODEL.FPN.OUT_CHANNELS)
+        self.dynamic_proposal_generator = DynamicProposalGenerator(cfg, self.backbone.feature_info.channels())
         input_shape = self.get_input_shape(self.backbone.feature_info, new_channels=cfg.MODEL.FPN.OUT_CHANNELS)
         self.dynamic_head = DynamicHead(cfg, input_shape)
 
-        # embedding parameters
-        self.init_proposal_features = nn.Embedding(self.cfg.MODEL.NUM_PROPOSALS, self.in_channels)
-        self.init_proposal_boxes = nn.Embedding(self.cfg.MODEL.NUM_PROPOSALS, 4)  # cx, cy, w, h
-        nn.init.constant_(self.init_proposal_boxes.weight[:, :2], 0.5)  # center
-        nn.init.constant_(self.init_proposal_boxes.weight[:, 2:], 1.0)  # size
 
     @staticmethod
     def get_input_shape(feature_info: timm.models.features.FeatureInfo, new_channels: int):
@@ -115,16 +152,19 @@ class SparseRCNN(torch.nn.Module):
     def forward(self, x: torch.Tensor, img_whwh: torch.Tensor) -> Dict[str, torch.Tensor]:
         batch_size, _, *image_wh_pad = x.shape
         features = self.backbone(x)
+
+        proposal_boxes, proposal_features = self.dynamic_proposal_generator(features)
         features = self.fpn(*features)
 
-        proposal_boxes = self.init_proposal_boxes.weight.clone()
-        proposal_boxes_xyxy = box_cxcywh_to_xyxy(proposal_boxes)
-        proposal_boxes_xyxy = proposal_boxes_xyxy[None] * img_whwh[:, None, :]
+        proposal_boxes_xyxy = proposal_boxes.new_zeros((batch_size, self.cfg.MODEL.NUM_PROPOSALS, 4))
+        for i in range(batch_size):
+            proposal_boxes_xyxy[i] = box_cxcywh_to_xyxy(proposal_boxes[i])
+        proposal_boxes_xyxy = proposal_boxes_xyxy * img_whwh[:, None, :]
 
         # outputs_class: [(N, NUM_PROPOSALS, NUM_CLASSES)*NUM_HEADS]
         # outputs_coord: [(N, NUM_PROPOSALS, 4)*NUM_HEADS]
         outputs_class, outputs_coord = self.dynamic_head(features, proposal_boxes_xyxy,
-                                                         self.init_proposal_features.weight)
+                                                         proposal_features)
 
         if not self.training and not self.raw_outputs:
             scores = torch.sigmoid(outputs_class[-1])
