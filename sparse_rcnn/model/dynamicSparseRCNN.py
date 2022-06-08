@@ -76,7 +76,6 @@ class StaircaseStructure(nn.Module):
             )
             setattr(self, f"dw{i+1}", dw)
 
-        self.relu = nn.ReLU(inplace=True)
         self.linear = nn.Sequential(
             nn.Linear(in_features=self.interpolate_size ** 2, out_features=1500),
             nn.ReLU(inplace=True),
@@ -109,8 +108,11 @@ class DynamicProposalGenerator(torch.nn.Module):
         self.num_proposals = cfg.MODEL.NUM_PROPOSALS
         self.init_proposal_features = nn.Embedding(self.num_experts, 256)
         self.init_proposal_boxes = nn.Embedding(self.num_experts, 4)  # cx, cy, w, h
-        nn.init.constant_(self.init_proposal_boxes.weight[:, :2], 0.5)  # center
-        nn.init.constant_(self.init_proposal_boxes.weight[:, 2:], 1.0)  # size
+        # nn.init.constant_(self.init_proposal_boxes.weight[:, :2], 0.5)  # center
+        # nn.init.constant_(self.init_proposal_boxes.weight[:, 2:], 1.0)  # size
+        nn.init.uniform_(self.init_proposal_boxes.weight[:, :2], 0.3, 0.7)  # center
+        nn.init.uniform_(self.init_proposal_boxes.weight[:, 2:], 0.4, 0.6)
+
         self.expert_weight_layer = StaircaseStructure(*fpn_feature_channels,
                                                       num_experts=self.num_experts, num_proposals=self.num_proposals)
 
