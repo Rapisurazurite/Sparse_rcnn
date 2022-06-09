@@ -109,7 +109,9 @@ class DynamicProposalGenerator(torch.nn.Module):
         self.init_proposal_features = nn.Embedding(self.num_experts, 256)
         self.init_proposal_boxes = nn.Embedding(self.num_experts, 4)  # cx, cy, w, h
         nn.init.uniform_(self.init_proposal_boxes.weight[:, :2], 0, 1)
-        nn.init.constant_(self.init_proposal_boxes.weight[:, 2:], 1.0)  # size
+        nn.init.uniform_(self.init_proposal_boxes.weight[:, 2:], 0, 1)
+
+        # nn.init.constant_(self.init_proposal_boxes.weight[:, 2:], 1.0)  # size
 
 
         self.expert_weight_layer = StaircaseStructure(*fpn_feature_channels,
