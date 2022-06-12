@@ -3,3 +3,4 @@ sharedarray
 pycocotools
 fvcore
 albumentations
+easydict

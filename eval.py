@@ -9,7 +9,7 @@ import tqdm
 from sparse_rcnn.dataloader import build_dataloader
 from sparse_rcnn.dataloader.dataset import build_coco_transforms
 from sparse_rcnn.evaluation.coco_evaluation import COCOEvaluator
-from sparse_rcnn.model import SparseRCNN
+from sparse_rcnn.model import SparseRCNN, build_model
 from sparse_rcnn.utils import common_utils
 from sparse_rcnn.utils.config import cfg_from_yaml_file, cfg, cfg_from_list, log_config_to_file
 from sparse_rcnn.utils.train_utils import load_checkpoint
@@ -20,7 +20,6 @@ def parse_args():
     parser.add_argument("--dataset", type=str, default="sparse_rcnn/configs/coco.yaml")
     parser.add_argument("--model", type=str, default="sparse_rcnn/configs/sparse_rcnn.yaml")
     parser.add_argument("--extra_tag", type=str, default="default")
-    parser.add_argument("--max_checkpoints", type=int, default=5)
     parser.add_argument("--ckpt", type=str, default=None)
     parser.add_argument('--set', dest='set_cfgs', default=None, nargs=argparse.REMAINDER,
                         help='set extra config keys if needed')
@@ -89,14 +88,19 @@ def main():
     logger.info('**********************Start logging**********************')
     log_config_to_file(cfg, logger=logger)
     # ------------ Create dataloader ------------
-    test_loader = build_dataloader(cfg,
+    test_loader, _ = build_dataloader(cfg,
                                    transforms=build_coco_transforms(cfg, mode="val"),
                                    batch_size=cfg.SOLVER.IMS_PER_BATCH,
                                    dist=False,
                                    workers=4,
                                    mode="val")
 
-    model = SparseRCNN(
+    # model = SparseRCNN(
+    #     cfg,
+    #     num_classes=cfg.MODEL.SparseRCNN.NUM_CLASSES,
+    #     backbone=cfg.MODEL.BACKBONE
+    # )
+    model = build_model(
         cfg,
         num_classes=cfg.MODEL.SparseRCNN.NUM_CLASSES,
         backbone=cfg.MODEL.BACKBONE
@@ -106,7 +110,7 @@ def main():
 
     model.to(device)
     optimizer = None
-    evaluator = COCOEvaluator(cfg.BASE_ROOT, 'coco_2017_val', logger)
+    evaluator = COCOEvaluator(cfg.BASE_ROOT, cfg.DATASETS.TEST[0], logger)
 
     # if specified ckpt file, load it
     if args.ckpt:

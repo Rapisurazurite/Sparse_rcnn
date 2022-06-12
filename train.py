@@ -14,7 +14,7 @@ from sparse_rcnn.dataloader import build_dataloader
 from sparse_rcnn.dataloader.dataset import build_coco_transforms
 from sparse_rcnn.evaluation.coco_evaluation import COCOEvaluator
 from sparse_rcnn.loss import SparseRcnnLoss
-from sparse_rcnn.model import SparseRCNN
+from sparse_rcnn.model import SparseRCNN, build_model
 from sparse_rcnn.solver import build_optimizer, build_lr_scheduler
 from sparse_rcnn.utils import common_utils, commu_utils
 from sparse_rcnn.utils.config import cfg_from_yaml_file, cfg, cfg_from_list, log_config_to_file
@@ -53,13 +53,14 @@ def parse_args():
     return args, cfg
 
 
-def train_model(model, criterion, optimizer, evaluator, train_loader, test_loader, scheduler, start_epoch, total_epochs,
+def train_model(model, criterion, optimizer, evaluator, train_loader, train_sampler, test_loader, scheduler, start_epoch, total_epochs,
                 device, logger, ckpt_save_dir, args, cfg, extern_callback=None):
     scaler = GradScaler() if args.fp16_mix else None
     model.train()
     with tqdm.trange(start_epoch, total_epochs, desc="epochs", ncols=120) as ebar:
         for cur_epoch in ebar:
-
+            if train_sampler is not None:
+                train_sampler.set_epoch(cur_epoch)
             train_one_epoch(model, criterion, optimizer, train_loader, scheduler, cur_epoch, device, logger, args, cfg,
                             ebar, scaler)
             if cfg.LOCAL_RANK == 0:
@@ -200,11 +201,12 @@ def train_one_epoch(model, criterion, optimizer, train_loader, scheduler, cur_ep
             # ----------------- log -----------------
             if cur_iter % args.log_iter == 0:
                 logger.info(
-                    f"Epoch: [{cur_epoch}][{cur_iter}/{total_it_each_epoch}], \n lr:{e_disp['lr']}, loss: {t_disp['l']}, loss_ce: {t_disp['l_ce']}, loss_giou: {t_disp['l_giou']}, loss_bbox: {t_disp['l_bbox']}")
+                    f"\nEpoch: [{cur_epoch}][{cur_iter}/{total_it_each_epoch}], \n lr:{e_disp['lr']}, loss: {t_disp['l']}, loss_ce: {t_disp['l_ce']}, loss_giou: {t_disp['l_giou']}, loss_bbox: {t_disp['l_bbox']}")
+                # TODO: debug
+                # proposaL_box = model.dynamic_proposal_generator.init_proposal_boxes.weight.data.cpu().numpy()
+                # logger.info(f"proposaL_box: {proposaL_box}")
 
-        # # TODO: delete
-        # if cur_iter > 250:
-        #     break
+
     # --------------- after train one epoch ---------------
     logger.info("Epoch: {} finished!".format(cur_epoch))
     logger.info(
@@ -239,27 +241,33 @@ def main():
     log_config_to_file(cfg, logger=logger)
 
     # ------------ Create dataloader ------------
-    train_dataloader = build_dataloader(cfg,
+    train_dataloader, sampler = build_dataloader(cfg,
                                         transforms=build_coco_transforms(cfg, mode="train"),
                                         batch_size=cfg.SOLVER.IMS_PER_BATCH,
                                         dist=dist_train,
                                         workers=2,
                                         pin_memory=True,
                                         mode="train")
-    test_loader = build_dataloader(cfg,
+    test_loader, _ = build_dataloader(cfg,
                                    transforms=build_coco_transforms(cfg, mode="val"),
                                    batch_size=cfg.SOLVER.IMS_PER_BATCH,
-                                   dist=dist_train,
+                                   dist=False,
                                    workers=2,
                                    pin_memory=False,
                                    mode="val")
 
     # --------------- Create model ---------------
-    model = SparseRCNN(
+    # model = SparseRCNN(
+    #     cfg,
+    #     num_classes=cfg.MODEL.SparseRCNN.NUM_CLASSES,
+    #     backbone=cfg.MODEL.BACKBONE
+    # )
+    model = build_model(
         cfg,
         num_classes=cfg.MODEL.SparseRCNN.NUM_CLASSES,
         backbone=cfg.MODEL.BACKBONE
     )
+
     if args.sync_bn:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
@@ -287,6 +295,7 @@ def main():
                 optimizer,
                 evaluator=evaluator,
                 train_loader=train_dataloader,
+                train_sampler = sampler,
                 test_loader=test_loader,
                 scheduler=lr_scheduler,
                 start_epoch=start_epoch,

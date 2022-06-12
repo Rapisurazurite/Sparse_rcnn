@@ -7,33 +7,7 @@ from torch import nn
 
 from .head import DynamicHead
 from ..utils.box_ops import box_cxcywh_to_xyxy
-
-_available_backbones = {
-    "resnet18": {"model_name": "resnet18",
-                 "features_only": True,
-                 "out_indices": (1, 2, 3, 4),
-                 "pretrained": True,
-                 "num_classes": 0,
-                 "global_pool": ""},
-    "resnet50": {"model_name": "resnet50",
-                 "features_only": True,
-                 "out_indices": (1, 2, 3, 4),
-                 "pretrained": True,
-                 "num_classes": 0,
-                 "global_pool": ""},
-    "efficientnet_b3": {"model_name": "efficientnet_b3",
-                        "features_only": True,
-                        "out_indices": (1, 2, 3, 4),
-                        "pretrained": True,
-                        "num_classes": 0,
-                        "global_pool": ""},
-    "efficientnet_b2a": {"model_name": "efficientnet_b2a",
-                         "features_only": True,
-                         "out_indices": (1, 2, 3, 4),
-                         "pretrained": True,
-                         "num_classes": 0,
-                         "global_pool": ""},
-}
+from .available_backbones import _available_backbones
 
 
 class FPN(nn.Module):
