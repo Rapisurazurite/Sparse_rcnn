@@ -250,7 +250,7 @@ def main():
     test_loader = build_dataloader(cfg,
                                    transforms=build_coco_transforms(cfg, mode="val"),
                                    batch_size=cfg.SOLVER.IMS_PER_BATCH,
-                                   dist=dist_train,
+                                   dist=False,
                                    workers=2,
                                    pin_memory=False,
                                    mode="val")
