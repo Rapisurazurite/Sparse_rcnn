@@ -10,7 +10,7 @@
 - [x] fp16 mixed precision training
 - [ ] MAE
 - [ ] Voc dataset support 
-- [ ] Support for multiple GPUs
+- [x] Support for multiple GPUs
  
 Dynamic Sparse-RCNN
 - [x] OTA assignment matcher
