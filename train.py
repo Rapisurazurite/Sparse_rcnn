@@ -202,8 +202,8 @@ def train_one_epoch(model, criterion, optimizer, train_loader, scheduler, cur_ep
                 logger.info(
                     f"\nEpoch: [{cur_epoch}][{cur_iter}/{total_it_each_epoch}], \n lr:{e_disp['lr']}, loss: {t_disp['l']}, loss_ce: {t_disp['l_ce']}, loss_giou: {t_disp['l_giou']}, loss_bbox: {t_disp['l_bbox']}")
                 # TODO: debug
-                proposaL_box = model.dynamic_proposal_generator.init_proposal_boxes.weight.data.cpu().numpy()
-                logger.info(f"proposaL_box: {proposaL_box}")
+                # proposaL_box = model.dynamic_proposal_generator.init_proposal_boxes.weight.data.cpu().numpy()
+                # logger.info(f"proposaL_box: {proposaL_box}")
 
 
     # --------------- after train one epoch ---------------
