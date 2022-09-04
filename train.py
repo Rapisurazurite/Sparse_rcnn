@@ -54,12 +54,12 @@ def parse_args():
 
 
 def train_model(model, criterion, optimizer, evaluator, train_loader, train_sampler, test_loader, scheduler, start_epoch, total_epochs,
-                device, logger, ckpt_save_dir, args, cfg, extern_callback=None):
+                device, dist_train, logger, ckpt_save_dir, args, cfg, extern_callback=None):
     scaler = GradScaler() if args.fp16_mix else None
     model.train()
     with tqdm.trange(start_epoch, total_epochs, desc="epochs", ncols=120) as ebar:
         for cur_epoch in ebar:
-            if train_sampler is not None:
+            if train_sampler is not None and dist_train:
                 train_sampler.set_epoch(cur_epoch)
             train_one_epoch(model, criterion, optimizer, train_loader, scheduler, cur_epoch, device, logger, args, cfg,
                             ebar, scaler)
@@ -245,14 +245,14 @@ def main():
                                         transforms=build_coco_transforms(cfg, mode="train"),
                                         batch_size=cfg.SOLVER.IMS_PER_BATCH,
                                         dist=dist_train,
-                                        workers=2,
+                                        workers=cfg.DATALOADER.NUM_WORKERS,
                                         pin_memory=True,
                                         mode="train")
     test_loader, _ = build_dataloader(cfg,
                                    transforms=build_coco_transforms(cfg, mode="val"),
                                    batch_size=cfg.SOLVER.IMS_PER_BATCH,
                                    dist=False,
-                                   workers=2,
+                                   workers=cfg.DATALOADER.NUM_WORKERS,
                                    pin_memory=False,
                                    mode="val")
 
@@ -301,6 +301,7 @@ def main():
                 start_epoch=start_epoch,
                 total_epochs=cfg.SOLVER.NUM_EPOCHS,
                 device=device,
+                dist_train=dist_train,
                 logger=logger,
                 ckpt_save_dir=ckpt_dir,
                 args=args,
